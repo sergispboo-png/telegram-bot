@@ -1,9 +1,8 @@
 import asyncio
+import os
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart
-
-import os
 
 TOKEN = os.getenv("BOT_TOKEN")
 
@@ -24,12 +23,14 @@ def main_menu():
     )
     return keyboard
 
+
 @dp.message(CommandStart())
 async def start(message: Message):
     await message.answer(
         "👋 Привет!\n\nВыбери действие:",
         reply_markup=main_menu()
     )
+
 
 @dp.callback_query(F.data == "image")
 async def image(callback: CallbackQuery):
@@ -46,6 +47,8 @@ async def image(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+
 @dp.callback_query(F.data == "avatar")
 async def avatar(callback: CallbackQuery):
 
@@ -63,24 +66,41 @@ async def avatar(callback: CallbackQuery):
     await callback.answer()
 
 
-@dp.callback_query(F.data == "pay")
-async def pay(callback: CallbackQuery):
-    await callback.message.answer("Выбери способ оплаты 💳")
-    await callback.answer()
-
 @dp.callback_query(F.data == "profile")
 async def profile(callback: CallbackQuery):
-    await callback.message.answer("Это твой профиль 👤")
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        "👤 Это твой профиль",
+        reply_markup=keyboard
+    )
+
     await callback.answer()
 
-async def main():
-    bot = Bot(token=TOKEN)
-    await dp.start_polling(bot)
 
-if __name__ == "__main__":
+@dp.callback_query(F.data == "pay")
+async def pay(callback: CallbackQuery):
 
-    asyncio.run(main())
-    @dp.callback_query(F.data == "back")
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        "💳 Выбери способ оплаты",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "back")
 async def back(callback: CallbackQuery):
 
     await callback.message.edit_text(
@@ -90,3 +110,11 @@ async def back(callback: CallbackQuery):
 
     await callback.answer()
 
+
+async def main():
+    bot = Bot(token=TOKEN)
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
