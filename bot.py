@@ -33,8 +33,35 @@ async def start(message: Message):
 
 @dp.callback_query(F.data == "image")
 async def image(callback: CallbackQuery):
-    await callback.message.answer("Опиши изображение ✍️")
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        "✍️ Опиши изображение которое хочешь создать:",
+        reply_markup=keyboard
+    )
+
     await callback.answer()
+@dp.callback_query(F.data == "avatar")
+async def avatar(callback: CallbackQuery):
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        "🧑 Опиши какой аватар ты хочешь:",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
+
 
 @dp.callback_query(F.data == "pay")
 async def pay(callback: CallbackQuery):
@@ -53,3 +80,13 @@ async def main():
 if __name__ == "__main__":
 
     asyncio.run(main())
+    @dp.callback_query(F.data == "back")
+async def back(callback: CallbackQuery):
+
+    await callback.message.edit_text(
+        "👋 Привет!\n\nВыбери действие:",
+        reply_markup=main_menu()
+    )
+
+    await callback.answer()
+
