@@ -18,7 +18,7 @@ def main_menu():
         inline_keyboard=[
             [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
             [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="pay")],
-            [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YOUR_CHANNEL")],
+            [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YourDesignerSpb")],
             [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
         ]
     )
@@ -194,3 +194,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
