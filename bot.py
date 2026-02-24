@@ -8,17 +8,30 @@ TOKEN = os.getenv("BOT_TOKEN")
 
 dp = Dispatcher()
 
+selected_model = "SeeDream 4.5"
+selected_format = "Оригинал"
+balance = 0
+
+
 def main_menu():
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🖼 Изображение", callback_data="image")],
-            [InlineKeyboardButton(text="✨ Генератор промптов", callback_data="prompt")],
-            [InlineKeyboardButton(text="👤 Аватар", callback_data="avatar")],
-            [
-                InlineKeyboardButton(text="👤 Личный кабинет", callback_data="profile"),
-                InlineKeyboardButton(text="💰 Пополнить", callback_data="pay")
-            ],
+            [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
+            [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="pay")],
+            [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YOUR_CHANNEL")],
             [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
+        ]
+    )
+    return keyboard
+
+
+def generate_menu():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"🤖 Модель: {selected_model}", callback_data="model")],
+            [InlineKeyboardButton(text=f"📐 Формат: {selected_format}", callback_data="format")],
+            [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="pay")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back")]
         ]
     )
     return keyboard
@@ -32,55 +45,97 @@ async def start(message: Message):
     )
 
 
-@dp.callback_query(F.data == "image")
-async def image(callback: CallbackQuery):
+@dp.callback_query(F.data == "generate")
+async def generate(callback: CallbackQuery):
+
+    await callback.message.edit_text(
+        f"""🖼 Работа с изображениями
+
+🤖 Модель: {selected_model}
+📐 Формат: {selected_format}
+💰 Стоимость: 10₽
+
+Что вы хотите сделать?""",
+        reply_markup=generate_menu()
+    )
+
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "model")
+async def model_menu(callback: CallbackQuery):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+            [InlineKeyboardButton(text="Nano-Banana", callback_data="nano")],
+            [InlineKeyboardButton(text="Nano-Banana Pro", callback_data="pro")],
+            [InlineKeyboardButton(text="SeeDream 4.0", callback_data="sd4")],
+            [InlineKeyboardButton(text="SeeDream 4.5", callback_data="sd45")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="generate")]
         ]
     )
 
     await callback.message.edit_text(
-        "✍️ Опиши изображение которое хочешь создать:",
+        "🤖 Выберите модель:",
         reply_markup=keyboard
     )
 
     await callback.answer()
 
 
-@dp.callback_query(F.data == "avatar")
-async def avatar(callback: CallbackQuery):
+@dp.callback_query(F.data.in_(["nano", "pro", "sd4", "sd45"]))
+async def set_model(callback: CallbackQuery):
+
+    global selected_model
+
+    if callback.data == "nano":
+        selected_model = "Nano-Banana"
+    elif callback.data == "pro":
+        selected_model = "Nano-Banana Pro"
+    elif callback.data == "sd4":
+        selected_model = "SeeDream 4.0"
+    elif callback.data == "sd45":
+        selected_model = "SeeDream 4.5"
+
+    await generate(callback)
+
+
+@dp.callback_query(F.data == "format")
+async def format_menu(callback: CallbackQuery):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+            [InlineKeyboardButton(text="1:1 Квадрат", callback_data="f1")],
+            [InlineKeyboardButton(text="2:3 Портрет", callback_data="f2")],
+            [InlineKeyboardButton(text="16:9 Широкое", callback_data="f3")],
+            [InlineKeyboardButton(text="Оригинал", callback_data="f4")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="generate")]
         ]
     )
 
     await callback.message.edit_text(
-        "🧑 Опиши какой аватар ты хочешь:",
+        "📐 Выберите формат:",
         reply_markup=keyboard
     )
 
     await callback.answer()
 
 
-@dp.callback_query(F.data == "profile")
-async def profile(callback: CallbackQuery):
+@dp.callback_query(F.data.in_(["f1", "f2", "f3", "f4"]))
+async def set_format(callback: CallbackQuery):
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-        ]
-    )
+    global selected_format
 
-    await callback.message.edit_text(
-        "👤 Это твой профиль",
-        reply_markup=keyboard
-    )
+    if callback.data == "f1":
+        selected_format = "1:1"
+    elif callback.data == "f2":
+        selected_format = "2:3"
+    elif callback.data == "f3":
+        selected_format = "16:9"
+    elif callback.data == "f4":
+        selected_format = "Оригинал"
 
-    await callback.answer()
+    await generate(callback)
 
 
 @dp.callback_query(F.data == "pay")
@@ -88,12 +143,33 @@ async def pay(callback: CallbackQuery):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="generate")]
+        ]
+    )
+
+    await callback.message.edit_text(
+        f"""💰 Пополнение баланса
+
+Ваш текущий баланс: {balance}₽
+
+Выберите сумму пополнения:""",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "about")
+async def about(callback: CallbackQuery):
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
         ]
     )
 
     await callback.message.edit_text(
-        "💳 Выбери способ оплаты",
+        "ℹ️ Информация о сервисе",
         reply_markup=keyboard
     )
 
