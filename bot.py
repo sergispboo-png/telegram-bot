@@ -1,3 +1,6 @@
+from fastapi import FastAPI, Request
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+from aiogram.webhook.aiohttp_server import setup_application
 import asyncio
 import os
 from aiogram import Bot, Dispatcher, F
@@ -187,11 +190,25 @@ async def back(callback: CallbackQuery):
     await callback.answer()
 
 
-async def main():
-    bot = Bot(token=TOKEN)
-    await dp.start_polling(bot)
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
+
+bot = Bot(token=TOKEN)
+app = FastAPI()
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@app.on_event("startup")
+async def on_startup():
+    await bot.set_webhook(WEBHOOK_URL)
 
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    await bot.delete_webhook()
+
+
+@app.post(WEBHOOK_PATH)
+async def bot_webhook(request: Request):
+    data = await request.json()
+    await dp.feed_update(bot, data)
+    return {"ok": True}
