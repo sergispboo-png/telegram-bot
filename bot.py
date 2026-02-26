@@ -1,3 +1,4 @@
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 import os
 import asyncio
 from aiogram import Bot, Dispatcher, F
@@ -42,15 +43,18 @@ async def on_startup(app):
 async def on_shutdown(app):
     await bot.delete_webhook()
 
-async def handle(request):
-    update = await request.json()
-    await dp.feed_webhook_update(bot, update)
-    return web.Response()
+
 
 app = web.Application()
-app.router.add_post(WEBHOOK_PATH, handle)
+SimpleRequestHandler(
+    dispatcher=dp,
+    bot=bot
+).register(app, path=WEBHOOK_PATH)
+
+setup_application(app, dp, bot=bot)
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
