@@ -17,7 +17,7 @@ def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
         [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="balance")],
-        [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/LuxRenderBot")],
+        [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YourDesignerSpb")],
         [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
     ])
 
@@ -96,11 +96,12 @@ async def balance(callback: CallbackQuery):
         balance_menu()))
 
 @dp.callback_query(F.data == "main")
-async def main(callback: CallbackQuery):
+async def back_to_main(callback: CallbackQuery):
+    await callback.message.answer(
+        "🏠 Главное меню",
+        reply_markup=main_menu()
+    )
     await callback.answer()
-    asyncio.create_task(safe_edit(callback,
-        "👋 Главное меню:",
-        main_menu()))
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
@@ -123,3 +124,4 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
