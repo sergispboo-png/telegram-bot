@@ -18,7 +18,7 @@ def main_menu():
         inline_keyboard=[
             [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
             [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="balance")],
-            [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/LuxRenderBot")],
+            [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YourDesignerSpb")],
             [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
         ]
     )
@@ -130,3 +130,4 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
