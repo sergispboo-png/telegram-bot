@@ -13,16 +13,14 @@ WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ---------------- ГЛАВНОЕ МЕНЮ ----------------
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
         [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="balance")],
-        [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YourDesignerSpb")],
+        [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/LuxRenderBot")],
         [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
     ])
 
-# ---------------- МЕНЮ ГЕНЕРАЦИИ ----------------
 def generate_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🤖 Модель", callback_data="model")],
@@ -31,7 +29,6 @@ def generate_menu():
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main")]
     ])
 
-# ---------------- МОДЕЛИ ----------------
 def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Nano-Banana", callback_data="m1")],
@@ -41,7 +38,6 @@ def model_menu():
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="generate")]
     ])
 
-# ---------------- ФОРМАТ ----------------
 def format_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="1:1 Квадрат", callback_data="f1")],
@@ -51,7 +47,6 @@ def format_menu():
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="generate")]
     ])
 
-# ---------------- БАЛАНС ----------------
 def balance_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="100₽", callback_data="pay1")],
@@ -60,62 +55,60 @@ def balance_menu():
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="generate")]
     ])
 
-# ---------------- START ----------------
 @dp.message(CommandStart())
 async def start(message: Message):
     await message.answer("👋 Привет!\n\nВыбери действие:", reply_markup=main_menu())
 
-# ---------------- CALLBACKS ----------------
+async def safe_edit(callback: CallbackQuery, text, markup):
+    await bot.edit_message_text(
+        chat_id=callback.message.chat.id,
+        message_id=callback.message.message_id,
+        text=text,
+        reply_markup=markup
+    )
 
 @dp.callback_query(F.data == "generate")
 async def generate(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(callback.message.edit_text(
+    asyncio.create_task(safe_edit(callback,
         "🖼 Работа с изображениями\n\nЧто вы хотите сделать?",
-        reply_markup=generate_menu()
-    ))
+        generate_menu()))
 
 @dp.callback_query(F.data == "model")
 async def model(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(callback.message.edit_text(
+    asyncio.create_task(safe_edit(callback,
         "🤖 Выберите модель:",
-        reply_markup=model_menu()
-    ))
+        model_menu()))
 
 @dp.callback_query(F.data == "format")
 async def format_select(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(callback.message.edit_text(
+    asyncio.create_task(safe_edit(callback,
         "📐 Выберите формат:",
-        reply_markup=format_menu()
-    ))
+        format_menu()))
 
 @dp.callback_query(F.data == "balance")
 async def balance(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(callback.message.edit_text(
+    asyncio.create_task(safe_edit(callback,
         "💰 Пополнение баланса:",
-        reply_markup=balance_menu()
-    ))
+        balance_menu()))
 
 @dp.callback_query(F.data == "main")
 async def main(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(callback.message.edit_text(
+    asyncio.create_task(safe_edit(callback,
         "👋 Главное меню:",
-        reply_markup=main_menu()
-    ))
+        main_menu()))
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(callback.message.edit_text(
+    asyncio.create_task(safe_edit(callback,
         "ℹ️ LuxRender — сервис генерации изображений.",
-        reply_markup=main_menu()
-    ))
+        main_menu()))
 
-# ---------------- WEBHOOK ----------------
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
 
