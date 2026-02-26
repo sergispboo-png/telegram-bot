@@ -1,10 +1,18 @@
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 import os
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from aiogram.filters import CommandStart
+import asyncio
 from aiohttp import web
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery
+)
+from aiogram.filters import CommandStart
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
+
+# ================== НАСТРОЙКИ ==================
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
@@ -12,18 +20,20 @@ WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ---------- ГЛАВНОЕ МЕНЮ ----------
+
+# ================== КЛАВИАТУРЫ ==================
+
 def main_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
             [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="balance")],
-            [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YourDesignerSpb")],
+            [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/LuxRenderBot")],
             [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
         ]
     )
 
-# ---------- МЕНЮ ГЕНЕРАЦИИ ----------
+
 def generate_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -34,7 +44,7 @@ def generate_menu():
         ]
     )
 
-# ---------- МОДЕЛИ ----------
+
 def model_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -46,7 +56,7 @@ def model_menu():
         ]
     )
 
-# ---------- ФОРМАТ ----------
+
 def format_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -58,7 +68,7 @@ def format_menu():
         ]
     )
 
-# ---------- БАЛАНС ----------
+
 def balance_menu():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -69,65 +79,111 @@ def balance_menu():
         ]
     )
 
-# ---------- START ----------
+
+# ================== HANDLERS ==================
+
 @dp.message(CommandStart())
 async def start(message: Message):
-    await message.answer("👋 Привет!\n\nВыбери действие:", reply_markup=main_menu())
-
-# ---------- CALLBACKS ----------
-@dp.callback_query(F.data == "generate")
-async def generate(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "🖼 Работа с изображениями\n\nЧто вы хотите сделать?",
-        reply_markup=generate_menu()
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "model")
-async def model(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "🤖 Выберите модель:",
-        reply_markup=model_menu()
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "format")
-async def format(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "📐 Выберите формат:",
-        reply_markup=format_menu()
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "balance")
-async def balance(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "💰 Пополнение баланса:",
-        reply_markup=balance_menu()
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "main")
-async def main(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "👋 Главное меню:",
+    await message.answer(
+        "👋 Привет!\n\nВыбери действие:",
         reply_markup=main_menu()
     )
-    await callback.answer()
 
-# ---------- WEBHOOK ----------
+
+# ---------- Генерация ----------
+@dp.callback_query(F.data == "generate")
+async def generate(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        callback.message.edit_text(
+            "🖼 Работа с изображениями\n\nЧто вы хотите сделать?",
+            reply_markup=generate_menu()
+        )
+    )
+
+
+# ---------- Модель ----------
+@dp.callback_query(F.data == "model")
+async def model(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        callback.message.edit_text(
+            "🤖 Выберите модель:",
+            reply_markup=model_menu()
+        )
+    )
+
+
+# ---------- Формат ----------
+@dp.callback_query(F.data == "format")
+async def format_select(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        callback.message.edit_text(
+            "📐 Выберите формат:",
+            reply_markup=format_menu()
+        )
+    )
+
+
+# ---------- Баланс ----------
+@dp.callback_query(F.data == "balance")
+async def balance(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        callback.message.edit_text(
+            "💰 Пополнение баланса:",
+            reply_markup=balance_menu()
+        )
+    )
+
+
+# ---------- Главное меню ----------
+@dp.callback_query(F.data == "main")
+async def main(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        callback.message.edit_text(
+            "👋 Главное меню:",
+            reply_markup=main_menu()
+        )
+    )
+
+
+# ---------- О сервисе ----------
+@dp.callback_query(F.data == "about")
+async def about(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        callback.message.edit_text(
+            "ℹ️ LuxRender — сервис генерации изображений.",
+            reply_markup=main_menu()
+        )
+    )
+
+
+# ================== WEBHOOK ==================
+
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
+
 
 async def on_shutdown(app):
     await bot.delete_webhook()
 
+
 app = web.Application()
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+
+SimpleRequestHandler(
+    dispatcher=dp,
+    bot=bot
+).register(app, path=WEBHOOK_PATH)
+
 setup_application(app, dp, bot=bot)
+
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
+
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
-
