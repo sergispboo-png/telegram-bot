@@ -116,13 +116,6 @@ def format_menu():
     ])
 
 
-def prompt_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Сменить модель", callback_data="generate")],
-        [InlineKeyboardButton(text="⬅ В главное меню", callback_data="back_main")]
-    ])
-
-
 def after_generation_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Запустить редактирование", callback_data="edit_start")],
@@ -207,13 +200,15 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
     header = breadcrumb_text(model, format_value)
 
     if mode == "text":
-        text = f"{header}\n\n✍ Напишите промпт:"
-        await callback.message.edit_text(text, reply_markup=prompt_menu())
+        await callback.message.edit_text(
+            f"{header}\n\n✍ Напишите промпт:"
+        )
         await state.set_state(Generate.waiting_prompt)
 
-    elif mode == "image":
-        text = f"{header}\n\n🖼 Отправьте изображение:"
-        await callback.message.edit_text(text, reply_markup=prompt_menu())
+    else:
+        await callback.message.edit_text(
+            f"{header}\n\n🖼 Отправьте изображение:"
+        )
         await state.set_state(Generate.waiting_image)
 
     await callback.answer()
@@ -255,7 +250,7 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    balance, model_db, format_db = user
+    balance, model, format_value = user
     COST = 10
 
     if balance < COST:
@@ -263,22 +258,12 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    # берем актуальные данные из FSM
-    data = await state.get_data()
-
-    model = model_db
-    format_value = format_db
-    user_image = data.get("user_image")
-
-    if not model:
-        model = "google/gemini-2.5-flash-image"
-
-    if not format_value:
-        format_value = "1:1"
-
     status = await message.answer("🎨 Генерирую...")
 
     try:
+        data = await state.get_data()
+        user_image = data.get("user_image")
+
         result = await generate_image_openrouter(
             prompt=message.text,
             model=model,
@@ -294,77 +279,42 @@ async def process_prompt(message: Message, state: FSMContext):
         buffer = BytesIO()
         image.save(buffer, format="JPEG", quality=85)
 
-     file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-sent = await message.answer_photo(file)
+        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+        sent = await message.answer_photo(file)
 
-if sent:
-    deduct_balance(user_id, COST)
+        if sent:
+            deduct_balance(user_id, COST)
 
-# --- красивый блок результата ---
+        short_prompt = message.text.strip()
+        if len(short_prompt) > 120:
+            short_prompt = short_prompt[:120] + "..."
 
-# краткий промпт
-short_prompt = message.text.strip()
-if len(short_prompt) > 120:
-    short_prompt = short_prompt[:120] + "..."
+        selected_model_key = data.get("selected_model")
+        model_name = MODEL_NAMES.get(selected_model_key, "AI Model")
 
-data = await state.get_data()
-selected_model_key = data.get("selected_model")
-model_name = MODEL_NAMES.get(selected_model_key, "AI Model")
+        new_balance = get_user(user_id)[0]
 
-new_balance = get_user(user_id)[0]
+        result_text = (
+            "━━━━━━━━━━━━━━━━━━\n"
+            "✨ <b>Изображение успешно создано!</b>\n\n"
+            f"🧠 <b>Модель:</b> {model_name}\n"
+            f"📝 <b>Запрос:</b> {short_prompt}\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            f"💎 <b>Баланс:</b> {new_balance} кредитов\n\n"
+            "Вы можете продолжить работу:"
+        )
 
-result_text = (
-    "━━━━━━━━━━━━━━━━━━\n"
-    "✨ <b>Изображение успешно создано!</b>\n\n"
-    f"🧠 <b>Модель:</b> {model_name}\n"
-    f"📝 <b>Запрос:</b> {short_prompt}\n"
-    "━━━━━━━━━━━━━━━━━━\n\n"
-    f"💎 <b>Баланс:</b> {new_balance} кредитов\n\n"
-    "Вы можете продолжить работу:"
-)
+        await message.answer(
+            result_text,
+            parse_mode="HTML",
+            reply_markup=after_generation_menu()
+        )
 
-await message.answer(
-    result_text,
-    parse_mode="HTML",
-    reply_markup=after_generation_menu()
-)
-
-await state.set_state(Generate.editing)
-
-        # сохраняем всё для редактирования
         await state.update_data(
             last_prompt=message.text,
             last_image=user_image
         )
 
-     # получаем краткий промпт (обрезаем если длинный)
-short_prompt = message.text.strip()
-if len(short_prompt) > 120:
-    short_prompt = short_prompt[:120] + "..."
-
-# получаем читаемое имя модели
-data = await state.get_data()
-selected_model_key = data.get("selected_model")
-model_name = MODEL_NAMES.get(selected_model_key, "AI Model")
-
-# получаем новый баланс
-new_balance = get_user(user_id)[0]
-
-result_text = (
-    "━━━━━━━━━━━━━━━━━━\n"
-    "✨ <b>Изображение успешно создано!</b>\n\n"
-    f"🧠 <b>Модель:</b> {model_name}\n"
-    f"📝 <b>Запрос:</b> {short_prompt}\n"
-    "━━━━━━━━━━━━━━━━━━\n\n"
-    f"💎 <b>Баланс:</b> {new_balance} кредитов\n\n"
-    "Вы можете продолжить работу:"
-)
-
-await message.answer(
-    result_text,
-    parse_mode="HTML",
-    reply_markup=after_generation_menu()
-)
         await state.set_state(Generate.editing)
 
         try:
@@ -372,70 +322,12 @@ await message.answer(
         except:
             pass
 
-    except Exception as e:
+    except Exception:
         logging.exception("FINAL GENERATION ERROR")
         try:
             await status.edit_text("❌ Ошибка генерации.")
         except:
             pass
-
-# ================= EDITING ================= #
-
-@dp.callback_query(F.data == "edit_prompt")
-async def edit_prompt(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-
-    # если было изображение — возвращаем его обратно
-    last_image = data.get("last_image")
-
-    if last_image:
-        await state.update_data(user_image=last_image)
-
-    await callback.message.answer("✏ Напишите новый промпт:")
-    await state.set_state(Generate.waiting_prompt)
-    await callback.answer()
-
-
-@dp.callback_query(F.data == "edit_add_photo")
-async def edit_add_photo(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer("🖼 Отправьте новое изображение:")
-    await state.set_state(Generate.waiting_image)
-    await callback.answer()
-
-
-@dp.callback_query(F.data == "edit_start")
-async def edit_start(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    prompt = data.get("last_prompt")
-
-    if not prompt:
-        await callback.answer("Нет данных")
-        return
-
-    fake_message = callback.message
-    fake_message.text = prompt
-    await process_prompt(fake_message, state)
-    await callback.answer()
-
-
-# ================= AUTO GENERATION ================= #
-
-@dp.message(F.photo & ~F.text)
-async def auto_photo(message: Message, state: FSMContext):
-    if await state.get_state():
-        return
-    await state.set_state(Generate.waiting_image)
-    await receive_image(message, state)
-
-
-@dp.message(F.text & ~F.photo)
-async def auto_text(message: Message, state: FSMContext):
-    if await state.get_state():
-        return
-    update_model(message.from_user.id, "google/gemini-2.5-flash-image")
-    update_format(message.from_user.id, "1:1")
-    await state.set_state(Generate.waiting_prompt)
-    await process_prompt(message, state)
 
 
 # ================= WEBHOOK ================= #
