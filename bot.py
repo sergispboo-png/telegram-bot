@@ -179,7 +179,6 @@ async def process_prompt(message: Message, state: FSMContext):
     balance, model, format_value = user
     COST = 10
 
-    # Проверка баланса
     if balance < COST:
         await message.answer(
             f"❌ Недостаточно средств.\nБаланс: {balance}₽\nСтоимость: {COST}₽",
@@ -190,29 +189,34 @@ async def process_prompt(message: Message, state: FSMContext):
 
     await message.answer("🎨 Генерирую изображение (10–20 секунд)...")
 
-    # Запрос к OpenRouter
     result = await generate_image_openrouter(
         prompt=message.text,
         model="google/gemini-2.5-flash-image",
         format_value=format_value
     )
 
-    # Если ошибка API — НЕ отправляем огромный JSON в Telegram
+    # Если ошибка API
     if "error" in result:
-        print("OPENROUTER ERROR:", result["error"])  # лог в Railway
+        print("OPENROUTER ERROR:", result["error"])
         await message.answer("❌ Ошибка генерации. Попробуйте позже.")
         await state.clear()
         return
 
+    # === ОТПРАВКА ИЗОБРАЖЕНИЯ ===
     try:
-        # Сохраняем картинку во временный файл
         import tempfile
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             tmp.write(result["image_bytes"])
             tmp_path = tmp.name
 
-        # Отправляем файл
-        await message.answer_photo(photo=open(tmp_path, "rb"))
+        sent = await message.answer_photo(photo=open(tmp_path, "rb"))
+
+        # 🔥 Деньги списываем ТОЛЬКО если Telegram реально вернул Message
+        if sent:
+            deduct_balance(user_id, COST)
+            new_balance = get_user(user_id)[0]
+            await message.answer(f"💰 Остаток: {new_balance}₽")
 
     except Exception as e:
         print("SEND IMAGE ERROR:", e)
@@ -220,14 +224,7 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    # Списываем деньги ТОЛЬКО после успешной отправки
-    deduct_balance(user_id, COST)
-
-    new_balance = get_user(user_id)[0]
-    await message.answer(f"💰 Остаток: {new_balance}₽")
-
     await state.clear()
-
 
 # ================= BALANCE =================
 
@@ -256,4 +253,5 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
 
