@@ -38,9 +38,10 @@ dp = Dispatcher(storage=MemoryStorage())
 class Generate(StatesGroup):
     waiting_image = State()
     waiting_prompt = State()
+    editing = State()
 
 
-# ================= UI HELPERS ================= #
+# ================= UI ================= #
 
 MODEL_NAMES = {
     "nano": "Nano Banana",
@@ -57,8 +58,6 @@ def breadcrumb_text(model=None, format_value=None):
         lines.append(f"📐 Формат: {format_value}")
     return "\n".join(lines)
 
-
-# ================= MENUS ================= #
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -124,6 +123,15 @@ def prompt_menu():
     ])
 
 
+def after_generation_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎨 Запустить редактирование", callback_data="edit_start")],
+        [InlineKeyboardButton(text="✏ Изменить промпт", callback_data="edit_prompt")],
+        [InlineKeyboardButton(text="🖼 Добавить ещё фото", callback_data="edit_add_photo")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="back_main")]
+    ])
+
+
 # ================= START ================= #
 
 @dp.message(CommandStart())
@@ -169,9 +177,7 @@ async def choose_mode(callback: CallbackQuery, state: FSMContext):
     update_model(callback.from_user.id, model_map.get(model_key))
     await state.update_data(selected_model=model_key)
 
-    text = breadcrumb_text(model_key)
-    text += "\n\n⚙ Выберите режим генерации:"
-
+    text = breadcrumb_text(model_key) + "\n\n⚙ Выберите режим генерации:"
     await callback.message.edit_text(text, reply_markup=mode_menu())
     await callback.answer()
 
@@ -184,9 +190,7 @@ async def choose_format(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     model = data.get("selected_model")
 
-    text = breadcrumb_text(model)
-    text += "\n\n📐 Выберите формат:"
-
+    text = breadcrumb_text(model) + "\n\n📐 Выберите формат:"
     await callback.message.edit_text(text, reply_markup=format_menu())
     await callback.answer()
 
@@ -215,7 +219,7 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# ================= IMAGE MODE ================= #
+# ================= IMAGE ================= #
 
 @dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
@@ -287,6 +291,15 @@ async def process_prompt(message: Message, state: FSMContext):
         if sent:
             deduct_balance(user_id, COST)
 
+        await state.update_data(last_prompt=message.text, last_image=user_image)
+
+        await message.answer(
+            "✅ Готово!\n\nВы можете продолжить работу:",
+            reply_markup=after_generation_menu()
+        )
+
+        await state.set_state(Generate.editing)
+
         try:
             await status.delete()
         except:
@@ -299,7 +312,58 @@ async def process_prompt(message: Message, state: FSMContext):
         except:
             pass
 
-    await state.clear()
+    # не очищаем state, остаемся в editing
+
+
+# ================= EDITING ================= #
+
+@dp.callback_query(F.data == "edit_prompt")
+async def edit_prompt(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("✏ Напишите новый промпт:")
+    await state.set_state(Generate.waiting_prompt)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "edit_add_photo")
+async def edit_add_photo(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("🖼 Отправьте новое изображение:")
+    await state.set_state(Generate.waiting_image)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "edit_start")
+async def edit_start(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    prompt = data.get("last_prompt")
+
+    if not prompt:
+        await callback.answer("Нет данных")
+        return
+
+    fake_message = callback.message
+    fake_message.text = prompt
+    await process_prompt(fake_message, state)
+    await callback.answer()
+
+
+# ================= AUTO GENERATION ================= #
+
+@dp.message(F.photo & ~F.text)
+async def auto_photo(message: Message, state: FSMContext):
+    if await state.get_state():
+        return
+    await state.set_state(Generate.waiting_image)
+    await receive_image(message, state)
+
+
+@dp.message(F.text & ~F.photo)
+async def auto_text(message: Message, state: FSMContext):
+    if await state.get_state():
+        return
+    update_model(message.from_user.id, "google/gemini-2.5-flash-image")
+    update_format(message.from_user.id, "1:1")
+    await state.set_state(Generate.waiting_prompt)
+    await process_prompt(message, state)
 
 
 # ================= WEBHOOK ================= #
