@@ -1,4 +1,5 @@
 import os
+import tempfile
 import asyncio
 from aiohttp import web
 
@@ -197,6 +198,9 @@ async def set_format(callback: CallbackQuery):
 
 # ================= PROMPT =================
 
+import tempfile
+
+
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
@@ -215,6 +219,43 @@ async def process_prompt(message: Message, state: FSMContext):
             f"❌ Недостаточно средств.\nБаланс: {balance}₽\nСтоимость: {COST}₽",
             reply_markup=main_menu()
         )
+        await state.clear()
+        return
+
+    await message.answer("🎨 Генерирую изображение (10–20 секунд)...")
+
+    result = await generate_image_openrouter(
+        prompt=message.text,
+        model="google/gemini-2.5-flash-image",
+        format_value=format_value
+    )
+
+    if "error" in result:
+        await message.answer("❌ Ошибка генерации:\n" + str(result["error"]))
+        await state.clear()
+        return
+
+    # Сохраняем во временный файл
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+        tmp.write(result["image_bytes"])
+        tmp_path = tmp.name
+
+    try:
+        await message.answer_photo(photo=open(tmp_path, "rb"))
+    except Exception as e:
+        await message.answer(f"Ошибка отправки изображения: {e}")
+        await state.clear()
+        return
+
+    deduct_balance(user_id, COST)
+
+    new_balance = get_user(user_id)[0]
+    await message.answer(f"💰 Остаток: {new_balance}₽")
+
+    await state.clear()
+
+
+
         await state.clear()
         return
 
@@ -271,4 +312,5 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
 
