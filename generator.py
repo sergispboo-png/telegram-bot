@@ -11,7 +11,7 @@ async def generate_image_openrouter(prompt: str, model: str, format_value: str):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://yourapp.com",  # обязательно для OpenRouter
+        "HTTP-Referer": "https://luxrender.app",
         "X-Title": "LuxRenderBot"
     }
 
@@ -27,6 +27,7 @@ async def generate_image_openrouter(prompt: str, model: str, format_value: str):
 
     async with aiohttp.ClientSession() as session:
         async with session.post(OPENROUTER_URL, json=payload, headers=headers) as response:
+
             data = await response.json()
             print("OPENROUTER RESPONSE:", data)
 
@@ -34,13 +35,18 @@ async def generate_image_openrouter(prompt: str, model: str, format_value: str):
                 return {"error": data}
 
             try:
-                # Gemini Flash Image возвращает base64 внутри message.content
-                content = data["choices"][0]["message"]["content"]
+                message = data["choices"][0]["message"]
 
-                # Иногда content это строка base64 напрямую
-                img_bytes = base64.b64decode(content)
+                # 🔥 Вот правильное извлечение изображения
+                image_data_url = message["images"][0]["image_url"]["url"]
 
-                return {"image_bytes": img_bytes}
+                # Убираем префикс data:image/png;base64,
+                base64_data = image_data_url.split(",")[1]
 
-            except Exception:
-                return {"error": data}
+                image_bytes = base64.b64decode(base64_data)
+
+                return {"image_bytes": image_bytes}
+
+            except Exception as e:
+                print("PARSE ERROR:", e)
+                return {"error": "Failed to parse image response"}
