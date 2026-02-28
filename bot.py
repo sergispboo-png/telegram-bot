@@ -294,11 +294,42 @@ async def process_prompt(message: Message, state: FSMContext):
         buffer = BytesIO()
         image.save(buffer, format="JPEG", quality=85)
 
-        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-        sent = await message.answer_photo(file)
+     file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+sent = await message.answer_photo(file)
 
-        if sent:
-            deduct_balance(user_id, COST)
+if sent:
+    deduct_balance(user_id, COST)
+
+# --- красивый блок результата ---
+
+# краткий промпт
+short_prompt = message.text.strip()
+if len(short_prompt) > 120:
+    short_prompt = short_prompt[:120] + "..."
+
+data = await state.get_data()
+selected_model_key = data.get("selected_model")
+model_name = MODEL_NAMES.get(selected_model_key, "AI Model")
+
+new_balance = get_user(user_id)[0]
+
+result_text = (
+    "━━━━━━━━━━━━━━━━━━\n"
+    "✨ <b>Изображение успешно создано!</b>\n\n"
+    f"🧠 <b>Модель:</b> {model_name}\n"
+    f"📝 <b>Запрос:</b> {short_prompt}\n"
+    "━━━━━━━━━━━━━━━━━━\n\n"
+    f"💎 <b>Баланс:</b> {new_balance} кредитов\n\n"
+    "Вы можете продолжить работу:"
+)
+
+await message.answer(
+    result_text,
+    parse_mode="HTML",
+    reply_markup=after_generation_menu()
+)
+
+await state.set_state(Generate.editing)
 
         # сохраняем всё для редактирования
         await state.update_data(
