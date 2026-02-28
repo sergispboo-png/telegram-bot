@@ -118,7 +118,7 @@ async def about(callback: CallbackQuery):
     )
 
 
-# ================= GENERATION FLOW =================
+# ================= GENERATE FLOW =================
 
 @dp.callback_query(F.data == "generate")
 async def generate(callback: CallbackQuery, state: FSMContext):
@@ -138,17 +138,27 @@ MODELS = {
     "m4": "SeeDream 4.5",
 }
 
-@dp.callback_query(F.data.in_(MODELS.keys()))
-async def set_model(callback: CallbackQuery):
-    update_model(callback.from_user.id, MODELS[callback.data])
-    await callback.answer("✅ Модель сохранена")
-
-
 @dp.callback_query(F.data == "model")
 async def open_model(callback: CallbackQuery):
     await callback.answer()
     asyncio.create_task(
         safe_edit(callback, "🤖 Выберите модель:", model_menu())
+    )
+
+
+@dp.callback_query(F.data.in_(MODELS.keys()))
+async def set_model(callback: CallbackQuery):
+    model_name = MODELS[callback.data]
+    update_model(callback.from_user.id, model_name)
+
+    await callback.answer("✅ Модель сохранена")
+
+    asyncio.create_task(
+        safe_edit(
+            callback,
+            f"🤖 Вы выбрали модель:\n\n{model_name}\n\nТеперь отправьте промпт:",
+            generate_menu()
+        )
     )
 
 
@@ -161,17 +171,27 @@ FORMATS = {
     "f4": "Original",
 }
 
-@dp.callback_query(F.data.in_(FORMATS.keys()))
-async def set_format(callback: CallbackQuery):
-    update_format(callback.from_user.id, FORMATS[callback.data])
-    await callback.answer("✅ Формат сохранён")
-
-
 @dp.callback_query(F.data == "format")
 async def open_format(callback: CallbackQuery):
     await callback.answer()
     asyncio.create_task(
         safe_edit(callback, "📐 Выберите формат:", format_menu())
+    )
+
+
+@dp.callback_query(F.data.in_(FORMATS.keys()))
+async def set_format(callback: CallbackQuery):
+    format_value = FORMATS[callback.data]
+    update_format(callback.from_user.id, format_value)
+
+    await callback.answer("✅ Формат сохранён")
+
+    asyncio.create_task(
+        safe_edit(
+            callback,
+            f"📐 Вы выбрали формат:\n\n{format_value}\n\nТеперь отправьте промпт:",
+            generate_menu()
+        )
     )
 
 
@@ -243,7 +263,6 @@ async def on_shutdown(app):
     await bot.delete_webhook()
 
 app = web.Application()
-
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
