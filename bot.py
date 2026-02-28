@@ -319,6 +319,14 @@ async def process_prompt(message: Message, state: FSMContext):
 
 @dp.callback_query(F.data == "edit_prompt")
 async def edit_prompt(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+
+    # если было изображение — возвращаем его обратно
+    last_image = data.get("last_image")
+
+    if last_image:
+        await state.update_data(user_image=last_image)
+
     await callback.message.answer("✏ Напишите новый промпт:")
     await state.set_state(Generate.waiting_prompt)
     await callback.answer()
