@@ -255,7 +255,7 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    balance, model, format_value = user
+    balance, model_db, format_db = user
     COST = 10
 
     if balance < COST:
@@ -263,12 +263,22 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
+    # берем актуальные данные из FSM
+    data = await state.get_data()
+
+    model = model_db
+    format_value = format_db
+    user_image = data.get("user_image")
+
+    if not model:
+        model = "google/gemini-2.5-flash-image"
+
+    if not format_value:
+        format_value = "1:1"
+
     status = await message.answer("🎨 Генерирую...")
 
     try:
-        data = await state.get_data()
-        user_image = data.get("user_image")
-
         result = await generate_image_openrouter(
             prompt=message.text,
             model=model,
@@ -276,9 +286,8 @@ async def process_prompt(message: Message, state: FSMContext):
             user_image=user_image
         )
 
-        if "error" in result:
+        if "error" in result or "image_bytes" not in result:
             await status.edit_text("❌ Ошибка генерации.")
-            await state.clear()
             return
 
         image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
@@ -291,7 +300,11 @@ async def process_prompt(message: Message, state: FSMContext):
         if sent:
             deduct_balance(user_id, COST)
 
-        await state.update_data(last_prompt=message.text, last_image=user_image)
+        # сохраняем всё для редактирования
+        await state.update_data(
+            last_prompt=message.text,
+            last_image=user_image
+        )
 
         await message.answer(
             "✅ Готово!\n\nВы можете продолжить работу:",
@@ -305,15 +318,12 @@ async def process_prompt(message: Message, state: FSMContext):
         except:
             pass
 
-    except Exception:
+    except Exception as e:
         logging.exception("FINAL GENERATION ERROR")
         try:
-            await status.edit_text("❌ Ошибка отправки изображения.")
+            await status.edit_text("❌ Ошибка генерации.")
         except:
             pass
-
-    # не очищаем state, остаемся в editing
-
 
 # ================= EDITING ================= #
 
