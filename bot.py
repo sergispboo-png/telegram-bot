@@ -197,12 +197,37 @@ async def process_prompt(message: Message, state: FSMContext):
         format_value=format_value
     )
 
-    # Если ошибка API
     if "error" in result:
         print("OPENROUTER ERROR:", result["error"])
         await message.answer("❌ Ошибка генерации. Попробуйте позже.")
         await state.clear()
         return
+
+    try:
+        from PIL import Image
+        from io import BytesIO
+        import tempfile
+
+        image = Image.open(BytesIO(result["image_bytes"]))
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            image.convert("RGB").save(tmp, format="JPEG", quality=85)
+            tmp_path = tmp.name
+
+        sent = await message.answer_photo(photo=open(tmp_path, "rb"))
+
+        if sent:
+            deduct_balance(user_id, COST)
+            new_balance = get_user(user_id)[0]
+            await message.answer(f"💰 Остаток: {new_balance}₽")
+
+    except Exception as e:
+        print("SEND IMAGE ERROR:", e)
+        await message.answer("❌ Ошибка отправки изображения.")
+        await state.clear()
+        return
+
+    await state.clear()
 
   
 # === ОТПРАВКА ИЗОБРАЖЕНИЯ ===
@@ -253,6 +278,7 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
 
 
 
