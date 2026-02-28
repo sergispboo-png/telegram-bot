@@ -1,8 +1,11 @@
 import aiohttp
 import logging
-from config import OPENROUTER_API_KEY, OPENROUTER_MODEL
+import os
 
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = "google/gemini-2.5-flash-image"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 
 async def generate_image(prompt: str) -> bytes:
     headers = {
