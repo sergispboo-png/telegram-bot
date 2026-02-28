@@ -25,7 +25,7 @@ from generator import generate_image_openrouter
 
 # ================= LOGGING ================= #
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 
 # ================= CONFIG ================= #
