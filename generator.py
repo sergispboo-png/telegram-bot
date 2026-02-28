@@ -1,52 +1,45 @@
-import os
 import aiohttp
-import base64
+import logging
+from config import OPENROUTER_API_KEY, OPENROUTER_MODEL
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-
-async def generate_image_openrouter(prompt: str, model: str, format_value: str):
-
+async def generate_image(prompt: str) -> bytes:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://luxrender.app",
-        "X-Title": "LuxRenderBot"
     }
 
     payload = {
-        "model": model,
+        "model": OPENROUTER_MODEL,
         "messages": [
             {
                 "role": "user",
-                "content": prompt
+                "content": [
+                    {"type": "text", "text": prompt}
+                ]
             }
         ]
     }
 
     async with aiohttp.ClientSession() as session:
-        async with session.post(OPENROUTER_URL, json=payload, headers=headers) as response:
+        async with session.post(OPENROUTER_URL, headers=headers, json=payload) as resp:
+            data = await resp.json()
 
-            data = await response.json()
-            print("OPENROUTER RESPONSE:", data)
+            logging.info(f"OpenRouter response: {data}")
 
-            if response.status != 200:
-                return {"error": data}
+            if "choices" not in data:
+                raise Exception(f"Invalid response: {data}")
 
-            try:
-                message = data["choices"][0]["message"]
+            message = data["choices"][0]["message"]
 
-                # 🔥 Вот правильное извлечение изображения
-                image_data_url = message["images"][0]["image_url"]["url"]
+            if "images" not in message or not message["images"]:
+                raise Exception(f"No images in response: {data}")
 
-                # Убираем префикс data:image/png;base64,
-                base64_data = image_data_url.split(",")[1]
+            image_url = message["images"][0]["image_url"]["url"]
 
-                image_bytes = base64.b64decode(base64_data)
+            async with session.get(image_url) as img_resp:
+                if img_resp.status != 200:
+                    raise Exception(f"Image download failed: {img_resp.status}")
 
-                return {"image_bytes": image_bytes}
-
-            except Exception as e:
-                print("PARSE ERROR:", e)
-                return {"error": "Failed to parse image response"}
+                return await img_resp.read()
