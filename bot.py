@@ -23,12 +23,7 @@ from database import add_user, get_user, update_model, update_format, deduct_bal
 from generator import generate_image_openrouter
 
 
-# ================= LOGGING ================= #
-
 logging.basicConfig(level=logging.WARNING)
-
-
-# ================= CONFIG ================= #
 
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_PATH = "/webhook"
@@ -50,7 +45,30 @@ class Generate(StatesGroup):
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
-        [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="topup")]
+        [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="topup")],
+        [InlineKeyboardButton(
+            text="📢 TG канал с промптами",
+            url="https://t.me/YourDesignerSpb"
+        )],
+        [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
+    ])
+
+
+def topup_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="100 ₽", callback_data="topup_100"),
+            InlineKeyboardButton(text="500 ₽", callback_data="topup_500"),
+        ],
+        [
+            InlineKeyboardButton(text="1000 ₽", callback_data="topup_1000"),
+        ],
+        [
+            InlineKeyboardButton(text="💳 Другая сумма", callback_data="topup_custom")
+        ],
+        [
+            InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")
+        ]
     ])
 
 
@@ -58,14 +76,16 @@ def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Nano Banana", callback_data="model_nano")],
         [InlineKeyboardButton(text="Nano Banana Pro", callback_data="model_pro")],
-        [InlineKeyboardButton(text="SeeDream", callback_data="model_seedream")]
+        [InlineKeyboardButton(text="SeeDream", callback_data="model_seedream")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
     ])
 
 
 def mode_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📝 Только промпт", callback_data="mode_text")],
-        [InlineKeyboardButton(text="🖼 Фото + промпт", callback_data="mode_image")]
+        [InlineKeyboardButton(text="🖼 Фото + промпт", callback_data="mode_image")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
     ])
 
 
@@ -77,7 +97,8 @@ def format_menu():
         ],
         [
             InlineKeyboardButton(text="9:16", callback_data="format_9:16"),
-        ]
+        ],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
     ])
 
 
@@ -90,11 +111,28 @@ async def start(message: Message, state: FSMContext):
     await message.answer("🏠 Главное меню", reply_markup=main_menu())
 
 
+# ================= NAVIGATION ================= #
+
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+    await callback.answer()
+
+
+# ================= TOPUP ================= #
+
+@dp.callback_query(F.data == "topup")
+async def show_topup(callback: CallbackQuery):
+    await callback.message.edit_text("💰 Выберите сумму пополнения:", reply_markup=topup_menu())
+    await callback.answer()
+
+
 # ================= GENERATION FLOW ================= #
 
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery):
-    await callback.message.answer("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
 
@@ -109,10 +147,9 @@ async def choose_mode(callback: CallbackQuery, state: FSMContext):
     }
 
     update_model(callback.from_user.id, model_map.get(model_key))
-
     await state.update_data(selected_model=model_key)
 
-    await callback.message.answer("⚙ Выберите режим генерации:", reply_markup=mode_menu())
+    await callback.message.edit_text("⚙ Выберите режим генерации:", reply_markup=mode_menu())
     await callback.answer()
 
 
@@ -121,7 +158,7 @@ async def choose_format(callback: CallbackQuery, state: FSMContext):
     mode = callback.data.split("_")[1]
     await state.update_data(mode=mode)
 
-    await callback.message.answer("📐 Выберите формат:", reply_markup=format_menu())
+    await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
     await callback.answer()
 
 
@@ -134,13 +171,13 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
     mode = data.get("mode")
 
     if mode == "text":
-        await callback.message.answer(
+        await callback.message.edit_text(
             f"✅ Формат: {format_value}\n\n✍️ Напишите промпт:"
         )
         await state.set_state(Generate.waiting_prompt)
 
     elif mode == "image":
-        await callback.message.answer(
+        await callback.message.edit_text(
             f"✅ Формат: {format_value}\n\n🖼 Отправьте изображение:"
         )
         await state.set_state(Generate.waiting_image)
@@ -153,14 +190,10 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
 @dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
 
-    file_id = None
-
     if message.photo:
         file_id = message.photo[-1].file_id
-
     elif message.document and message.document.mime_type and message.document.mime_type.startswith("image"):
         file_id = message.document.file_id
-
     else:
         await message.answer("❌ Пожалуйста, отправьте изображение.")
         return
@@ -172,7 +205,6 @@ async def receive_image(message: Message, state: FSMContext):
     image_base64 = base64.b64encode(image_bytes).decode()
 
     await state.update_data(user_image=image_base64)
-
     await message.answer("✍️ Теперь напишите промпт:")
     await state.set_state(Generate.waiting_prompt)
 
@@ -215,14 +247,11 @@ async def process_prompt(message: Message, state: FSMContext):
             await state.clear()
             return
 
-        image_bytes = result["image_bytes"]
-
-        image = Image.open(BytesIO(image_bytes)).convert("RGB")
+        image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
         buffer = BytesIO()
         image.save(buffer, format="JPEG", quality=85)
 
         file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-
         sent = await message.answer_photo(file)
 
         if sent:
