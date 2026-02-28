@@ -28,6 +28,7 @@ async def generate_image_openrouter(prompt: str, model: str, format_value: str):
     async with aiohttp.ClientSession() as session:
         async with session.post(OPENROUTER_URL, json=payload, headers=headers) as response:
             data = await response.json()
+            print("OPENROUTER RESPONSE:", data)
 
             if response.status != 200:
                 return {"error": data}
