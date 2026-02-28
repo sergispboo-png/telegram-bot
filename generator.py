@@ -42,19 +42,20 @@ async def generate_image_openrouter(prompt: str, model: str, format_value: str):
 
                 image_obj = message["images"][0]
 
-                # 🔥 ВАРИАНТ 1 — base64
-                if "image_base64" in image_obj:
-                    image_bytes = base64.b64decode(image_obj["image_base64"])
-                    return {"image_bytes": image_bytes}
-
-                # 🔥 ВАРИАНТ 2 — image_url
+                # --- Вариант 1: image_url ---
                 if "image_url" in image_obj:
-                    image_url = image_obj["image_url"]["url"]
+                    url = image_obj["image_url"]["url"]
 
-                    async with session.get(image_url) as img_resp:
+                    # 🔥 DATA URI (base64 внутри)
+                    if url.startswith("data:image"):
+                        base64_data = url.split("base64,")[1]
+                        image_bytes = base64.b64decode(base64_data)
+                        return {"image_bytes": image_bytes}
+
+                    # 🔥 Обычный URL
+                    async with session.get(url) as img_resp:
                         if img_resp.status != 200:
                             return {"error": f"Image download failed: {img_resp.status}"}
-
                         image_bytes = await img_resp.read()
                         return {"image_bytes": image_bytes}
 
