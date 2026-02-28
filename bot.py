@@ -306,11 +306,34 @@ async def process_prompt(message: Message, state: FSMContext):
             last_image=user_image
         )
 
-        await message.answer(
-            "✅ Готово!\n\nВы можете продолжить работу:",
-            reply_markup=after_generation_menu()
-        )
+     # получаем краткий промпт (обрезаем если длинный)
+short_prompt = message.text.strip()
+if len(short_prompt) > 120:
+    short_prompt = short_prompt[:120] + "..."
 
+# получаем читаемое имя модели
+data = await state.get_data()
+selected_model_key = data.get("selected_model")
+model_name = MODEL_NAMES.get(selected_model_key, "AI Model")
+
+# получаем новый баланс
+new_balance = get_user(user_id)[0]
+
+result_text = (
+    "━━━━━━━━━━━━━━━━━━\n"
+    "✨ <b>Изображение успешно создано!</b>\n\n"
+    f"🧠 <b>Модель:</b> {model_name}\n"
+    f"📝 <b>Запрос:</b> {short_prompt}\n"
+    "━━━━━━━━━━━━━━━━━━\n\n"
+    f"💎 <b>Баланс:</b> {new_balance} кредитов\n\n"
+    "Вы можете продолжить работу:"
+)
+
+await message.answer(
+    result_text,
+    parse_mode="HTML",
+    reply_markup=after_generation_menu()
+)
         await state.set_state(Generate.editing)
 
         try:
