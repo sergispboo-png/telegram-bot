@@ -1,15 +1,10 @@
 import os
-import tempfile
 import asyncio
+import tempfile
 from aiohttp import web
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import (
-    Message,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    CallbackQuery,
-)
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
@@ -17,14 +12,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from database import (
-    add_user,
-    get_user,
-    update_model,
-    update_format,
-    deduct_balance
-)
-
+from database import add_user, get_user, update_model, update_format, deduct_balance
 from generator import generate_image_openrouter
 
 
@@ -102,7 +90,7 @@ async def safe_edit(callback: CallbackQuery, text, markup):
     )
 
 
-# ================= MAIN MENU =================
+# ================= MAIN =================
 
 @dp.callback_query(F.data == "main")
 async def back_to_main(callback: CallbackQuery, state: FSMContext):
@@ -114,20 +102,16 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(
-        safe_edit(callback, "LuxRender — AI генерация изображений.", main_menu())
-    )
+    asyncio.create_task(safe_edit(callback, "LuxRender — AI генерация изображений.", main_menu()))
 
 
-# ================= GENERATE FLOW =================
+# ================= GENERATION FLOW =================
 
 @dp.callback_query(F.data == "generate")
 async def generate(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Generate.waiting_prompt)
     await callback.answer()
-    asyncio.create_task(
-        safe_edit(callback, "🖼 Напишите промпт для генерации:", generate_menu())
-    )
+    asyncio.create_task(safe_edit(callback, "🖼 Напишите промпт для генерации:", generate_menu()))
 
 
 # ================= MODEL =================
@@ -142,24 +126,16 @@ MODELS = {
 @dp.callback_query(F.data == "model")
 async def open_model(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(
-        safe_edit(callback, "🤖 Выберите модель:", model_menu())
-    )
+    asyncio.create_task(safe_edit(callback, "🤖 Выберите модель:", model_menu()))
 
 
 @dp.callback_query(F.data.in_(MODELS.keys()))
 async def set_model(callback: CallbackQuery):
     model_name = MODELS[callback.data]
     update_model(callback.from_user.id, model_name)
-
     await callback.answer("✅ Модель сохранена")
-
     asyncio.create_task(
-        safe_edit(
-            callback,
-            f"🤖 Вы выбрали модель:\n\n{model_name}\n\nТеперь отправьте промпт:",
-            generate_menu()
-        )
+        safe_edit(callback, f"🤖 Вы выбрали модель:\n\n{model_name}\n\nТеперь отправьте промпт:", generate_menu())
     )
 
 
@@ -175,31 +151,20 @@ FORMATS = {
 @dp.callback_query(F.data == "format")
 async def open_format(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(
-        safe_edit(callback, "📐 Выберите формат:", format_menu())
-    )
+    asyncio.create_task(safe_edit(callback, "📐 Выберите формат:", format_menu()))
 
 
 @dp.callback_query(F.data.in_(FORMATS.keys()))
 async def set_format(callback: CallbackQuery):
     format_value = FORMATS[callback.data]
     update_format(callback.from_user.id, format_value)
-
     await callback.answer("✅ Формат сохранён")
-
     asyncio.create_task(
-        safe_edit(
-            callback,
-            f"📐 Вы выбрали формат:\n\n{format_value}\n\nТеперь отправьте промпт:",
-            generate_menu()
-        )
+        safe_edit(callback, f"📐 Вы выбрали формат:\n\n{format_value}\n\nТеперь отправьте промпт:", generate_menu())
     )
 
 
 # ================= PROMPT =================
-
-import tempfile
-
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
@@ -235,47 +200,13 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    # Сохраняем во временный файл
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
         tmp.write(result["image_bytes"])
         tmp_path = tmp.name
 
-    try:
-        await message.answer_photo(photo=open(tmp_path, "rb"))
-    except Exception as e:
-        await message.answer(f"Ошибка отправки изображения: {e}")
-        await state.clear()
-        return
+    await message.answer_photo(photo=open(tmp_path, "rb"))
 
     deduct_balance(user_id, COST)
-
-    new_balance = get_user(user_id)[0]
-    await message.answer(f"💰 Остаток: {new_balance}₽")
-
-    await state.clear()
-
-
-
-        await state.clear()
-        return
-
-    await message.answer("🎨 Генерирую изображение (10–20 секунд)...")
-
-    result = await generate_image_openrouter(
-        prompt=message.text,
-       model="google/gemini-2.5-flash-image",
-        format_value=format_value
-    )
-
-    if "error" in result:
-        await message.answer("❌ Ошибка генерации:\n" + str(result["error"]))
-        await state.clear()
-        return
-
-    deduct_balance(user_id, COST)
-
-    await message.answer_photo(photo=result["image_bytes"])
-
     new_balance = get_user(user_id)[0]
     await message.answer(f"💰 Остаток: {new_balance}₽")
 
@@ -288,11 +219,8 @@ async def process_prompt(message: Message, state: FSMContext):
 async def balance(callback: CallbackQuery):
     user = get_user(callback.from_user.id)
     balance_value = user[0] if user else 0
-
     await callback.answer()
-    asyncio.create_task(
-        safe_edit(callback, f"💰 Ваш баланс: {balance_value}₽", main_menu())
-    )
+    asyncio.create_task(safe_edit(callback, f"💰 Ваш баланс: {balance_value}₽", main_menu()))
 
 
 # ================= WEBHOOK =================
@@ -312,5 +240,3 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
-
-
