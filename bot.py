@@ -40,16 +40,31 @@ class Generate(StatesGroup):
     waiting_prompt = State()
 
 
+# ================= UI HELPERS ================= #
+
+MODEL_NAMES = {
+    "nano": "Nano Banana",
+    "pro": "Nano Banana Pro",
+    "seedream": "SeeDream"
+}
+
+
+def breadcrumb_text(model=None, format_value=None):
+    lines = []
+    if model:
+        lines.append(f"🧠 Модель: {MODEL_NAMES.get(model, model)}")
+    if format_value:
+        lines.append(f"📐 Формат: {format_value}")
+    return "\n".join(lines)
+
+
 # ================= MENUS ================= #
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
         [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="topup")],
-        [InlineKeyboardButton(
-            text="📢 TG канал с промптами",
-            url="https://t.me/YourDesignerSpb"
-        )],
+        [InlineKeyboardButton(text="📢 TG канал с промптами", url="https://t.me/YourDesignerSpb")],
         [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
     ])
 
@@ -102,6 +117,13 @@ def format_menu():
     ])
 
 
+def prompt_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Сменить модель", callback_data="generate")],
+        [InlineKeyboardButton(text="⬅ В главное меню", callback_data="back_main")]
+    ])
+
+
 # ================= START ================= #
 
 @dp.message(CommandStart())
@@ -119,8 +141,6 @@ async def back_main(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
     await callback.answer()
 
-
-# ================= TOPUP ================= #
 
 @dp.callback_query(F.data == "topup")
 async def show_topup(callback: CallbackQuery):
@@ -149,7 +169,10 @@ async def choose_mode(callback: CallbackQuery, state: FSMContext):
     update_model(callback.from_user.id, model_map.get(model_key))
     await state.update_data(selected_model=model_key)
 
-    await callback.message.edit_text("⚙ Выберите режим генерации:", reply_markup=mode_menu())
+    text = breadcrumb_text(model_key)
+    text += "\n\n⚙ Выберите режим генерации:"
+
+    await callback.message.edit_text(text, reply_markup=mode_menu())
     await callback.answer()
 
 
@@ -158,7 +181,13 @@ async def choose_format(callback: CallbackQuery, state: FSMContext):
     mode = callback.data.split("_")[1]
     await state.update_data(mode=mode)
 
-    await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
+    data = await state.get_data()
+    model = data.get("selected_model")
+
+    text = breadcrumb_text(model)
+    text += "\n\n📐 Выберите формат:"
+
+    await callback.message.edit_text(text, reply_markup=format_menu())
     await callback.answer()
 
 
@@ -169,17 +198,18 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
 
     data = await state.get_data()
     mode = data.get("mode")
+    model = data.get("selected_model")
+
+    header = breadcrumb_text(model, format_value)
 
     if mode == "text":
-        await callback.message.edit_text(
-            f"✅ Формат: {format_value}\n\n✍️ Напишите промпт:"
-        )
+        text = f"{header}\n\n✍ Напишите промпт:"
+        await callback.message.edit_text(text, reply_markup=prompt_menu())
         await state.set_state(Generate.waiting_prompt)
 
     elif mode == "image":
-        await callback.message.edit_text(
-            f"✅ Формат: {format_value}\n\n🖼 Отправьте изображение:"
-        )
+        text = f"{header}\n\n🖼 Отправьте изображение:"
+        await callback.message.edit_text(text, reply_markup=prompt_menu())
         await state.set_state(Generate.waiting_image)
 
     await callback.answer()
@@ -195,7 +225,7 @@ async def receive_image(message: Message, state: FSMContext):
     elif message.document and message.document.mime_type and message.document.mime_type.startswith("image"):
         file_id = message.document.file_id
     else:
-        await message.answer("❌ Пожалуйста, отправьте изображение.")
+        await message.answer("❌ Отправьте изображение.")
         return
 
     file = await bot.get_file(file_id)
@@ -205,7 +235,7 @@ async def receive_image(message: Message, state: FSMContext):
     image_base64 = base64.b64encode(image_bytes).decode()
 
     await state.update_data(user_image=image_base64)
-    await message.answer("✍️ Теперь напишите промпт:")
+    await message.answer("✍ Теперь напишите промпт:")
     await state.set_state(Generate.waiting_prompt)
 
 
