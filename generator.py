@@ -1,6 +1,7 @@
 import os
 import aiohttp
 import logging
+import base64
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -39,15 +40,25 @@ async def generate_image_openrouter(prompt: str, model: str, format_value: str):
                 if "images" not in message or not message["images"]:
                     return {"error": f"No images in response: {data}"}
 
-                image_url = message["images"][0]["image_url"]["url"]
+                image_obj = message["images"][0]
 
-                async with session.get(image_url) as img_resp:
-                    if img_resp.status != 200:
-                        return {"error": f"Image download failed: {img_resp.status}"}
-
-                    image_bytes = await img_resp.read()
-
+                # 🔥 ВАРИАНТ 1 — base64
+                if "image_base64" in image_obj:
+                    image_bytes = base64.b64decode(image_obj["image_base64"])
                     return {"image_bytes": image_bytes}
+
+                # 🔥 ВАРИАНТ 2 — image_url
+                if "image_url" in image_obj:
+                    image_url = image_obj["image_url"]["url"]
+
+                    async with session.get(image_url) as img_resp:
+                        if img_resp.status != 200:
+                            return {"error": f"Image download failed: {img_resp.status}"}
+
+                        image_bytes = await img_resp.read()
+                        return {"image_bytes": image_bytes}
+
+                return {"error": "Unknown image format in response"}
 
     except Exception as e:
         logging.exception("OpenRouter generation error")
