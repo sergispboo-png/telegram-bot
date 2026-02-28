@@ -24,14 +24,7 @@ from database import add_user, get_user, update_model, update_format, deduct_bal
 from generator import generate_image_openrouter
 
 
-# ---------------- LOGGING ---------------- #
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
-
-# ---------------- CONFIG ---------------- #
+logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_PATH = "/webhook"
@@ -41,13 +34,13 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 
-# ---------------- FSM ---------------- #
+# ================= FSM ================= #
 
 class Generate(StatesGroup):
     waiting_prompt = State()
 
 
-# ---------------- MENUS ---------------- #
+# ================= MENUS ================= #
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -58,10 +51,30 @@ def main_menu():
     ])
 
 
+def topup_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="100 ₽", callback_data="topup_100"),
+            InlineKeyboardButton(text="500 ₽", callback_data="topup_500"),
+        ],
+        [
+            InlineKeyboardButton(text="1000 ₽", callback_data="topup_1000"),
+        ],
+        [
+            InlineKeyboardButton(text="💳 Другая сумма", callback_data="topup_custom"),
+        ],
+        [
+            InlineKeyboardButton(text="⬅ Назад", callback_data="back_main"),
+        ]
+    ])
+
+
 def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Gemini Flash Image", callback_data="model_gemini")],
-        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
+        [InlineKeyboardButton(text="Nano Banana", callback_data="model_nano")],
+        [InlineKeyboardButton(text="Nano Banana Pro", callback_data="model_pro")],
+        [InlineKeyboardButton(text="SeeDream", callback_data="model_seedream")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
     ])
 
 
@@ -73,21 +86,11 @@ def format_menu():
         ],
         [
             InlineKeyboardButton(text="9:16", callback_data="format_9:16"),
-        ],
-        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
+        ]
     ])
 
 
-def generate_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🧠 Выбрать модель", callback_data="choose_model")],
-        [InlineKeyboardButton(text="📐 Выбрать формат", callback_data="choose_format")],
-        [InlineKeyboardButton(text="✍️ Ввести промпт", callback_data="write_prompt")],
-        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
-    ])
-
-
-# ---------------- START ---------------- #
+# ================= START ================= #
 
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
@@ -96,65 +99,73 @@ async def start(message: Message, state: FSMContext):
     await message.answer("🏠 Главное меню", reply_markup=main_menu())
 
 
-# ---------------- MAIN MENU ---------------- #
+# ================= TOPUP ================= #
 
-@dp.callback_query(F.data == "back_main")
-async def back_main(callback: CallbackQuery):
-    await callback.message.answer("🏠 Главное меню", reply_markup=main_menu())
+@dp.callback_query(F.data == "topup")
+async def topup(callback: CallbackQuery):
+    await callback.message.answer("💳 Выберите сумму пополнения:", reply_markup=topup_menu())
     await callback.answer()
 
+
+@dp.callback_query(F.data.startswith("topup_"))
+async def topup_selected(callback: CallbackQuery):
+    amount = callback.data.split("_")[1]
+    await callback.message.answer(f"🚧 Пополнение на {amount} ₽ скоро будет подключено.")
+    await callback.answer()
+
+
+# ================= GENERATE ================= #
 
 @dp.callback_query(F.data == "generate")
-async def open_generate(callback: CallbackQuery):
-    await callback.message.answer("🎨 Настройки генерации:", reply_markup=generate_menu())
-    await callback.answer()
-
-
-# ---------------- MODEL ---------------- #
-
-@dp.callback_query(F.data == "choose_model")
-async def choose_model(callback: CallbackQuery):
+async def generate_start(callback: CallbackQuery):
     await callback.message.answer("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
+
+# ================= MODEL ================= #
 
 @dp.callback_query(F.data.startswith("model_"))
 async def select_model(callback: CallbackQuery):
     model_key = callback.data.split("_")[1]
 
-    if model_key == "gemini":
-        update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
-        await callback.message.answer("✅ Модель: Gemini Flash Image")
+    model_map = {
+        "nano": "google/gemini-2.5-flash-image",
+        "pro": "google/gemini-2.5-flash-image",
+        "seedream": "google/gemini-2.5-flash-image"
+    }
 
+    update_model(callback.from_user.id, model_map[model_key])
+
+    await callback.message.answer("📐 Теперь выберите формат:", reply_markup=format_menu())
     await callback.answer()
 
 
-# ---------------- FORMAT ---------------- #
-
-@dp.callback_query(F.data == "choose_format")
-async def choose_format(callback: CallbackQuery):
-    await callback.message.answer("📐 Выберите формат:", reply_markup=format_menu())
-    await callback.answer()
-
+# ================= FORMAT ================= #
 
 @dp.callback_query(F.data.startswith("format_"))
-async def select_format(callback: CallbackQuery):
+async def select_format(callback: CallbackQuery, state: FSMContext):
     format_value = callback.data.split("_")[1]
+
     update_format(callback.from_user.id, format_value)
-    await callback.message.answer(f"✅ Формат: {format_value}")
-    await callback.answer()
 
+    user = get_user(callback.from_user.id)
+    _, model, format_value = user
 
-# ---------------- PROMPT ---------------- #
+    model_name = {
+        "google/gemini-2.5-flash-image": "Nano Banana"
+    }.get(model, "Неизвестно")
 
-@dp.callback_query(F.data == "write_prompt")
-async def write_prompt(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer(
+        f"✅ Модель: {model_name}\n"
+        f"✅ Формат: {format_value}\n\n"
+        f"✍️ Напишите промпт:"
+    )
+
     await state.set_state(Generate.waiting_prompt)
-    await callback.message.answer("✍️ Напишите промпт")
     await callback.answer()
 
 
-# ---------------- GENERATION ---------------- #
+# ================= PROMPT ================= #
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
@@ -185,7 +196,6 @@ async def process_prompt(message: Message, state: FSMContext):
         )
 
         if "error" in result:
-            logging.error(result["error"])
             await status_msg.edit_text("❌ Ошибка генерации.")
             await state.clear()
             return
@@ -194,24 +204,13 @@ async def process_prompt(message: Message, state: FSMContext):
 
         image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
-        quality = 95
-        while quality >= 30:
-            buffer = BytesIO()
-            image.save(buffer, format="JPEG", quality=quality)
-            size_mb = buffer.tell() / (1024 * 1024)
-
-            if size_mb <= 9:
-                image_bytes = buffer.getvalue()
-                break
-
-            quality -= 5
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG", quality=85)
+        image_bytes = buffer.getvalue()
 
         file = BufferedInputFile(image_bytes, filename="image.jpg")
 
-        if len(image_bytes) > 9 * 1024 * 1024:
-            sent = await message.answer_document(file)
-        else:
-            sent = await message.answer_photo(file)
+        sent = await message.answer_photo(file)
 
         if sent:
             deduct_balance(user_id, COST)
@@ -220,50 +219,33 @@ async def process_prompt(message: Message, state: FSMContext):
 
         await status_msg.delete()
 
-    except (TelegramBadRequest, TelegramNetworkError):
-        logging.exception("Telegram send error")
-        await status_msg.edit_text("❌ Ошибка отправки изображения.")
-
     except Exception:
-        logging.exception("Generation error")
-        await status_msg.edit_text("❌ Ошибка генерации.")
+        await status_msg.edit_text("❌ Ошибка отправки изображения.")
 
     await state.clear()
 
 
-# ---------------- BALANCE ---------------- #
-
-@dp.callback_query(F.data == "balance")
-async def balance(callback: CallbackQuery):
-    user = get_user(callback.from_user.id)
-    balance_value = user[0] if user else 0
-    await callback.message.answer(f"💰 Баланс: {balance_value}₽")
-    await callback.answer()
-
-
-# ---------------- OTHER BUTTONS ---------------- #
-
-@dp.callback_query(F.data == "topup")
-async def topup(callback: CallbackQuery):
-    await callback.message.answer("💳 Пополнение скоро будет доступно.")
-    await callback.answer()
-
+# ================= OTHER ================= #
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
-    await callback.message.answer("🤖 AI генератор изображений на Gemini.")
+    await callback.message.answer("🤖 AI генератор изображений.")
     await callback.answer()
 
 
-# ---------------- WEBHOOK ---------------- #
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery):
+    await callback.message.answer("🏠 Главное меню", reply_markup=main_menu())
+    await callback.answer()
+
+
+# ================= WEBHOOK ================= #
 
 async def on_startup(app):
-    logging.info("Setting webhook...")
     await bot.set_webhook(WEBHOOK_URL)
 
 
 async def on_shutdown(app):
-    logging.info("Deleting webhook...")
     await bot.delete_webhook()
     await bot.session.close()
 
