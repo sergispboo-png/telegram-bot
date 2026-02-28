@@ -146,10 +146,24 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
 
 # ================= IMAGE MODE ================= #
 
-@dp.message(Generate.waiting_image, F.photo)
+@dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
-    photo = message.photo[-1]
-    file = await bot.get_file(photo.file_id)
+
+    file_id = None
+
+    # Если фото
+    if message.photo:
+        file_id = message.photo[-1].file_id
+
+    # Если документ (png/jpg отправлен как файл)
+    elif message.document and message.document.mime_type.startswith("image"):
+        file_id = message.document.file_id
+
+    else:
+        await message.answer("❌ Пожалуйста, отправьте изображение.")
+        return
+
+    file = await bot.get_file(file_id)
     downloaded = await bot.download_file(file.file_path)
 
     image_bytes = downloaded.read()
@@ -236,3 +250,4 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
