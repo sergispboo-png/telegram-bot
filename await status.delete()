@@ -176,7 +176,6 @@ async def receive_image(message: Message, state: FSMContext):
 
 
 # ================= GENERATION ================= #
-
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
@@ -197,37 +196,49 @@ async def process_prompt(message: Message, state: FSMContext):
 
     status = await message.answer("🎨 Генерирую...")
 
-    data = await state.get_data()
-    user_image = data.get("user_image")
+    try:
+        data = await state.get_data()
+        user_image = data.get("user_image")
 
-    result = await generate_image_openrouter(
-        prompt=message.text,
-        model=model,
-        format_value=format_value,
-        user_image=user_image  # передаем если есть
-    )
+        result = await generate_image_openrouter(
+            prompt=message.text,
+            model=model,
+            format_value=format_value,
+            user_image=user_image
+        )
 
-    if "error" in result:
-        await status.edit_text("❌ Ошибка генерации.")
-        await state.clear()
-        return
+        if "error" in result:
+            await status.edit_text("❌ Ошибка генерации.")
+            await state.clear()
+            return
 
-    image_bytes = result["image_bytes"]
+        image_bytes = result["image_bytes"]
 
-    image = Image.open(BytesIO(image_bytes)).convert("RGB")
-    buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=85)
+        image = Image.open(BytesIO(image_bytes)).convert("RGB")
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG", quality=85)
 
-    file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
 
-    sent = await message.answer_photo(file)
+        sent = await message.answer_photo(file)
 
-    if sent:
-        deduct_balance(user_id, COST)
+        if sent:
+            deduct_balance(user_id, COST)
 
-    await status.delete()
+        # безопасно удаляем сообщение "Генерирую..."
+        try:
+            await status.delete()
+        except:
+            pass
+
+    except Exception as e:
+        logging.exception("FINAL GENERATION ERROR")
+        try:
+            await status.edit_text("❌ Ошибка отправки изображения.")
+        except:
+            pass
+
     await state.clear()
-
 
 # ================= WEBHOOK ================= #
 
@@ -250,4 +261,5 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
 
