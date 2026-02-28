@@ -38,15 +38,18 @@ async def generate_image_openrouter(
             "text": f"{prompt}\n\nFormat: {format_value}"
         })
 
-        payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": content
-                }
-            ]
+     payload = {
+    "model": model,
+    "response_format": {
+        "type": "image"
+    },
+    "messages": [
+        {
+            "role": "user",
+            "content": content
         }
+    ]
+}
 
         async with aiohttp.ClientSession() as session:
             async with session.post(OPENROUTER_URL, headers=headers, json=payload) as resp:
