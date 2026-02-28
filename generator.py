@@ -7,21 +7,43 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
-async def generate_image_openrouter(prompt: str, model: str, format_value: str):
+async def generate_image_openrouter(
+    prompt: str,
+    model: str,
+    format_value: str,
+    user_image: str = None,   # base64 от пользователя (если есть)
+):
     try:
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
         }
 
+        # ---------------- МESSAGES ---------------- #
+
+        content = []
+
+        # Если есть изображение пользователя
+        if user_image:
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{user_image}"
+                }
+            })
+
+        # Добавляем текст
+        content.append({
+            "type": "text",
+            "text": f"{prompt}\n\nFormat: {format_value}"
+        })
+
         payload = {
             "model": model,
             "messages": [
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt}
-                    ]
+                    "content": content
                 }
             ]
         }
@@ -42,17 +64,18 @@ async def generate_image_openrouter(prompt: str, model: str, format_value: str):
 
                 image_obj = message["images"][0]
 
-                # --- Вариант 1: image_url ---
+                # ---------------- DATA URI ---------------- #
+
                 if "image_url" in image_obj:
                     url = image_obj["image_url"]["url"]
 
-                    # 🔥 DATA URI (base64 внутри)
+                    # data:image/png;base64,...
                     if url.startswith("data:image"):
                         base64_data = url.split("base64,")[1]
                         image_bytes = base64.b64decode(base64_data)
                         return {"image_bytes": image_bytes}
 
-                    # 🔥 Обычный URL
+                    # обычный URL
                     async with session.get(url) as img_resp:
                         if img_resp.status != 200:
                             return {"error": f"Image download failed: {img_resp.status}"}
