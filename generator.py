@@ -1,48 +1,54 @@
+import os
 import aiohttp
 import logging
-import os
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = "google/gemini-2.5-flash-image"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
-async def generate_image(prompt: str) -> bytes:
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-    }
+async def generate_image_openrouter(prompt: str, model: str, format_value: str):
+    try:
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
 
-    payload = {
-        "model": OPENROUTER_MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt}
-                ]
-            }
-        ]
-    }
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt}
+                    ]
+                }
+            ]
+        }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(OPENROUTER_URL, headers=headers, json=payload) as resp:
-            data = await resp.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(OPENROUTER_URL, headers=headers, json=payload) as resp:
+                data = await resp.json()
 
-            logging.info(f"OpenRouter response: {data}")
+                logging.info(f"OpenRouter response: {data}")
 
-            if "choices" not in data:
-                raise Exception(f"Invalid response: {data}")
+                if "choices" not in data:
+                    return {"error": f"Invalid response: {data}"}
 
-            message = data["choices"][0]["message"]
+                message = data["choices"][0]["message"]
 
-            if "images" not in message or not message["images"]:
-                raise Exception(f"No images in response: {data}")
+                if "images" not in message or not message["images"]:
+                    return {"error": f"No images in response: {data}"}
 
-            image_url = message["images"][0]["image_url"]["url"]
+                image_url = message["images"][0]["image_url"]["url"]
 
-            async with session.get(image_url) as img_resp:
-                if img_resp.status != 200:
-                    raise Exception(f"Image download failed: {img_resp.status}")
+                async with session.get(image_url) as img_resp:
+                    if img_resp.status != 200:
+                        return {"error": f"Image download failed: {img_resp.status}"}
 
-                return await img_resp.read()
+                    image_bytes = await img_resp.read()
+
+                    return {"image_bytes": image_bytes}
+
+    except Exception as e:
+        logging.exception("OpenRouter generation error")
+        return {"error": str(e)}
