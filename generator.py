@@ -11,7 +11,7 @@ async def generate_image_openrouter(
     prompt: str,
     model: str,
     format_value: str,
-    user_image: str = None,   # base64 от пользователя (если есть)
+    user_image: str = None,
 ):
     try:
         headers = {
@@ -19,7 +19,7 @@ async def generate_image_openrouter(
             "Content-Type": "application/json",
         }
 
-        # ---------------- МESSAGES ---------------- #
+        # ---------- Формируем content ----------
 
         content = []
 
@@ -38,23 +38,31 @@ async def generate_image_openrouter(
             "text": f"{prompt}\n\nFormat: {format_value}"
         })
 
-     payload = {
-    "model": model,
-    "response_format": {
-        "type": "image"
-    },
-    "messages": [
-        {
-            "role": "user",
-            "content": content
+        # ---------- Payload ----------
+
+        payload = {
+            "model": model,
+            "response_format": {
+                "type": "image"
+            },
+            "messages": [
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ]
         }
-    ]
-}
+
+        # ---------- Запрос ----------
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(OPENROUTER_URL, headers=headers, json=payload) as resp:
-                data = await resp.json()
+            async with session.post(
+                OPENROUTER_URL,
+                headers=headers,
+                json=payload
+            ) as resp:
 
+                data = await resp.json()
                 logging.info(f"OpenRouter response: {data}")
 
                 if "choices" not in data:
@@ -66,8 +74,6 @@ async def generate_image_openrouter(
                     return {"error": f"No images in response: {data}"}
 
                 image_obj = message["images"][0]
-
-                # ---------------- DATA URI ---------------- #
 
                 if "image_url" in image_obj:
                     url = image_obj["image_url"]["url"]
