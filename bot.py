@@ -27,9 +27,7 @@ from database import (
 from generator import generate_image_openrouter
 
 
-# =======================
-# CONFIG
-# =======================
+# ================= CONFIG =================
 
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_PATH = "/webhook"
@@ -39,17 +37,13 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 
-# =======================
-# FSM STATES
-# =======================
+# ================= FSM =================
 
 class Generate(StatesGroup):
     waiting_prompt = State()
 
 
-# =======================
-# MENUS
-# =======================
+# ================= MENUS =================
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -87,21 +81,16 @@ def format_menu():
     ])
 
 
-# =======================
-# START
-# =======================
+# ================= START =================
 
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.clear()
     add_user(message.from_user.id)
+    await message.answer("👋 Привет! Выбери действие:", reply_markup=main_menu())
 
-    await message.answer("👋 Добро пожаловать!", reply_markup=main_menu())
 
-
-# =======================
-# SAFE EDIT
-# =======================
+# ================= SAFE EDIT =================
 
 async def safe_edit(callback: CallbackQuery, text, markup):
     await bot.edit_message_text(
@@ -112,45 +101,35 @@ async def safe_edit(callback: CallbackQuery, text, markup):
     )
 
 
-# =======================
-# MAIN MENU
-# =======================
+# ================= MAIN MENU =================
 
 @dp.callback_query(F.data == "main")
 async def back_to_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("🏠 Главное меню", reply_markup=main_menu())
+    await callback.message.answer("🏠 Главное меню:", reply_markup=main_menu())
     await callback.answer()
 
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
     await callback.answer()
-    asyncio.create_task(safe_edit(
-        callback,
-        "LuxRender — AI генерация изображений.",
-        main_menu()
-    ))
+    asyncio.create_task(
+        safe_edit(callback, "LuxRender — AI генерация изображений.", main_menu())
+    )
 
 
-# =======================
-# GENERATE FLOW
-# =======================
+# ================= GENERATION FLOW =================
 
 @dp.callback_query(F.data == "generate")
 async def generate(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Generate.waiting_prompt)
     await callback.answer()
-    asyncio.create_task(safe_edit(
-        callback,
-        "🖼 Напишите промпт для генерации:",
-        generate_menu()
-    ))
+    asyncio.create_task(
+        safe_edit(callback, "🖼 Напишите промпт для генерации:", generate_menu())
+    )
 
 
-# =======================
-# MODEL SELECTION
-# =======================
+# ================= MODEL =================
 
 MODELS = {
     "m1": "Nano-Banana",
@@ -165,9 +144,15 @@ async def set_model(callback: CallbackQuery):
     await callback.answer("✅ Модель сохранена")
 
 
-# =======================
-# FORMAT SELECTION
-# =======================
+@dp.callback_query(F.data == "model")
+async def open_model(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        safe_edit(callback, "🤖 Выберите модель:", model_menu())
+    )
+
+
+# ================= FORMAT =================
 
 FORMATS = {
     "f1": "1:1",
@@ -182,9 +167,15 @@ async def set_format(callback: CallbackQuery):
     await callback.answer("✅ Формат сохранён")
 
 
-# =======================
-# PROMPT HANDLER
-# =======================
+@dp.callback_query(F.data == "format")
+async def open_format(callback: CallbackQuery):
+    await callback.answer()
+    asyncio.create_task(
+        safe_edit(callback, "📐 Выберите формат:", format_menu())
+    )
+
+
+# ================= PROMPT =================
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
@@ -207,9 +198,8 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    await message.answer("🎨 Генерирую изображение (10–20 сек)...")
+    await message.answer("🎨 Генерирую изображение (10–20 секунд)...")
 
-    # Генерация
     result = await generate_image_openrouter(
         prompt=message.text,
         model="google/gemini-2.5-flash-image-preview",
@@ -221,7 +211,6 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    # Только после успеха списываем деньги
     deduct_balance(user_id, COST)
 
     await message.answer_photo(photo=result["image_bytes"])
@@ -232,9 +221,7 @@ async def process_prompt(message: Message, state: FSMContext):
     await state.clear()
 
 
-# =======================
-# BALANCE
-# =======================
+# ================= BALANCE =================
 
 @dp.callback_query(F.data == "balance")
 async def balance(callback: CallbackQuery):
@@ -242,16 +229,12 @@ async def balance(callback: CallbackQuery):
     balance_value = user[0] if user else 0
 
     await callback.answer()
-    asyncio.create_task(safe_edit(
-        callback,
-        f"💰 Ваш баланс: {balance_value}₽",
-        main_menu()
-    ))
+    asyncio.create_task(
+        safe_edit(callback, f"💰 Ваш баланс: {balance_value}₽", main_menu())
+    )
 
 
-# =======================
-# WEBHOOK
-# =======================
+# ================= WEBHOOK =================
 
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
@@ -260,6 +243,7 @@ async def on_shutdown(app):
     await bot.delete_webhook()
 
 app = web.Application()
+
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
