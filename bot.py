@@ -2,6 +2,8 @@ import os
 import asyncio
 import tempfile
 from aiohttp import web
+from PIL import Image
+from io import BytesIO
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -206,11 +208,14 @@ async def process_prompt(message: Message, state: FSMContext):
     try:
         import tempfile
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            tmp.write(result["image_bytes"])
-            tmp_path = tmp.name
+        # Конвертируем PNG → JPG чтобы уменьшить размер
+image = Image.open(BytesIO(result["image_bytes"]))
 
-        sent = await message.answer_photo(photo=open(tmp_path, "rb"))
+with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+    image.convert("RGB").save(tmp, format="JPEG", quality=85)
+    tmp_path = tmp.name
+
+sent = await message.answer_photo(photo=open(tmp_path, "rb"))
 
         # 🔥 Деньги списываем ТОЛЬКО если Telegram реально вернул Message
         if sent:
@@ -253,5 +258,6 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
 
 
