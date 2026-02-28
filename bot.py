@@ -204,32 +204,27 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.clear()
         return
 
-    # === ОТПРАВКА ИЗОБРАЖЕНИЯ ===
-    try:
-        import tempfile
+  
+# === ОТПРАВКА ИЗОБРАЖЕНИЯ ===
+try:
+    image = Image.open(BytesIO(result["image_bytes"]))
 
-        # Конвертируем PNG → JPG чтобы уменьшить размер
-image = Image.open(BytesIO(result["image_bytes"]))
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+        image.convert("RGB").save(tmp, format="JPEG", quality=85)
+        tmp_path = tmp.name
 
-with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-    image.convert("RGB").save(tmp, format="JPEG", quality=85)
-    tmp_path = tmp.name
+    sent = await message.answer_photo(photo=open(tmp_path, "rb"))
 
-sent = await message.answer_photo(photo=open(tmp_path, "rb"))
+    if sent:
+        deduct_balance(user_id, COST)
+        new_balance = get_user(user_id)[0]
+        await message.answer(f"💰 Остаток: {new_balance}₽")
 
-        # 🔥 Деньги списываем ТОЛЬКО если Telegram реально вернул Message
-        if sent:
-            deduct_balance(user_id, COST)
-            new_balance = get_user(user_id)[0]
-            await message.answer(f"💰 Остаток: {new_balance}₽")
-
-    except Exception as e:
-        print("SEND IMAGE ERROR:", e)
-        await message.answer("❌ Ошибка отправки изображения.")
-        await state.clear()
-        return
-
+except Exception as e:
+    print("SEND IMAGE ERROR:", e)
+    await message.answer("❌ Ошибка отправки изображения.")
     await state.clear()
+    return
 
 # ================= BALANCE =================
 
@@ -258,6 +253,7 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
 
 
 
