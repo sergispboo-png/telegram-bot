@@ -47,33 +47,118 @@ class Generate(StatesGroup):
     waiting_prompt = State()
 
 
-# ---------------- MENU ---------------- #
+# ---------------- MENUS ---------------- #
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
-        [InlineKeyboardButton(text="💰 Баланс", callback_data="balance")]
+        [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="topup")],
+        [InlineKeyboardButton(text="📢 TG канал с промптами", url="https://t.me/your_channel")],
+        [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
     ])
 
 
-# ---------------- HANDLERS ---------------- #
+def model_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Gemini Flash Image", callback_data="model_gemini")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
+    ])
+
+
+def format_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1:1", callback_data="format_1:1"),
+            InlineKeyboardButton(text="16:9", callback_data="format_16:9"),
+        ],
+        [
+            InlineKeyboardButton(text="9:16", callback_data="format_9:16"),
+        ],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
+    ])
+
+
+def generate_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🧠 Выбрать модель", callback_data="choose_model")],
+        [InlineKeyboardButton(text="📐 Выбрать формат", callback_data="choose_format")],
+        [InlineKeyboardButton(text="✍️ Ввести промпт", callback_data="write_prompt")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
+    ])
+
+
+# ---------------- START ---------------- #
 
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.clear()
     add_user(message.from_user.id)
-    await message.answer("👋 Привет!", reply_markup=main_menu())
+    await message.answer("🏠 Главное меню", reply_markup=main_menu())
 
 
-@dp.callback_query(F.data == "generate")
-async def generate_callback(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Generate.waiting_prompt)
-    await callback.message.answer("✍️ Напиши промпт")
+# ---------------- MAIN MENU ---------------- #
+
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery):
+    await callback.message.answer("🏠 Главное меню", reply_markup=main_menu())
     await callback.answer()
 
 
+@dp.callback_query(F.data == "generate")
+async def open_generate(callback: CallbackQuery):
+    await callback.message.answer("🎨 Настройки генерации:", reply_markup=generate_menu())
+    await callback.answer()
+
+
+# ---------------- MODEL ---------------- #
+
+@dp.callback_query(F.data == "choose_model")
+async def choose_model(callback: CallbackQuery):
+    await callback.message.answer("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("model_"))
+async def select_model(callback: CallbackQuery):
+    model_key = callback.data.split("_")[1]
+
+    if model_key == "gemini":
+        update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
+        await callback.message.answer("✅ Модель: Gemini Flash Image")
+
+    await callback.answer()
+
+
+# ---------------- FORMAT ---------------- #
+
+@dp.callback_query(F.data == "choose_format")
+async def choose_format(callback: CallbackQuery):
+    await callback.message.answer("📐 Выберите формат:", reply_markup=format_menu())
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("format_"))
+async def select_format(callback: CallbackQuery):
+    format_value = callback.data.split("_")[1]
+    update_format(callback.from_user.id, format_value)
+    await callback.message.answer(f"✅ Формат: {format_value}")
+    await callback.answer()
+
+
+# ---------------- PROMPT ---------------- #
+
+@dp.callback_query(F.data == "write_prompt")
+async def write_prompt(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Generate.waiting_prompt)
+    await callback.message.answer("✍️ Напишите промпт")
+    await callback.answer()
+
+
+# ---------------- GENERATION ---------------- #
+
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
+
     user_id = message.from_user.id
     user = get_user(user_id)
 
@@ -93,22 +178,20 @@ async def process_prompt(message: Message, state: FSMContext):
     status_msg = await message.answer("🎨 Генерирую...")
 
     try:
-        # ---------------- GENERATION ---------------- #
         result = await generate_image_openrouter(
             prompt=message.text,
-            model="google/gemini-2.5-flash-image",
+            model=model,
             format_value=format_value
         )
 
         if "error" in result:
-            logging.error(f"OpenRouter error: {result['error']}")
+            logging.error(result["error"])
             await status_msg.edit_text("❌ Ошибка генерации.")
             await state.clear()
             return
 
         image_bytes = result["image_bytes"]
 
-        # ---------------- CONVERT PNG -> JPG ---------------- #
         image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
         quality = 95
@@ -123,18 +206,13 @@ async def process_prompt(message: Message, state: FSMContext):
 
             quality -= 5
 
-        file_size_mb = len(image_bytes) / (1024 * 1024)
-        logging.info(f"Final image size: {file_size_mb:.2f} MB")
-
         file = BufferedInputFile(image_bytes, filename="image.jpg")
 
-        # ---------------- SAFE SEND ---------------- #
-        if file_size_mb > 9:
+        if len(image_bytes) > 9 * 1024 * 1024:
             sent = await message.answer_document(file)
         else:
             sent = await message.answer_photo(file)
 
-        # ---------------- DEDUCT ONLY AFTER SUCCESS ---------------- #
         if sent:
             deduct_balance(user_id, COST)
             new_balance = get_user(user_id)[0]
@@ -142,22 +220,38 @@ async def process_prompt(message: Message, state: FSMContext):
 
         await status_msg.delete()
 
-    except (TelegramBadRequest, TelegramNetworkError) as e:
+    except (TelegramBadRequest, TelegramNetworkError):
         logging.exception("Telegram send error")
         await status_msg.edit_text("❌ Ошибка отправки изображения.")
 
-    except Exception as e:
+    except Exception:
         logging.exception("Generation error")
         await status_msg.edit_text("❌ Ошибка генерации.")
 
     await state.clear()
 
 
+# ---------------- BALANCE ---------------- #
+
 @dp.callback_query(F.data == "balance")
 async def balance(callback: CallbackQuery):
     user = get_user(callback.from_user.id)
     balance_value = user[0] if user else 0
     await callback.message.answer(f"💰 Баланс: {balance_value}₽")
+    await callback.answer()
+
+
+# ---------------- OTHER BUTTONS ---------------- #
+
+@dp.callback_query(F.data == "topup")
+async def topup(callback: CallbackQuery):
+    await callback.message.answer("💳 Пополнение скоро будет доступно.")
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "about")
+async def about(callback: CallbackQuery):
+    await callback.message.answer("🤖 AI генератор изображений на Gemini.")
     await callback.answer()
 
 
