@@ -222,7 +222,7 @@ async def process_prompt(message: Message, state: FSMContext):
 
     result = await generate_image_openrouter(
         prompt=message.text,
-        model="google/gemini-2.5-flash-image-preview",
+       model="google/gemini-2.5-flash-image",
         format_value=format_value
     )
 
@@ -271,3 +271,4 @@ app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
