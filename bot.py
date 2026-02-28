@@ -12,20 +12,19 @@ from aiogram.types import (
 from aiogram.filters import CommandStart
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-# FSM
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# DATABASE
 from database import (
     add_user,
     get_user,
     update_model,
     update_format,
-    update_balance,
     deduct_balance
 )
+
+from generator import generate_image_openrouter
 
 
 # =======================
@@ -58,7 +57,7 @@ def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
         [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="balance")],
-        [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/YourDesignerSpb")],
+        [InlineKeyboardButton(text="📢 TG канал с промтами", url="https://t.me/LuxRenderBot")],
         [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
     ])
 
@@ -93,9 +92,6 @@ def format_menu():
 
 def balance_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="100₽", callback_data="pay1")],
-        [InlineKeyboardButton(text="500₽ +50₽", callback_data="pay2")],
-        [InlineKeyboardButton(text="1000₽ +150₽", callback_data="pay3")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main")]
     ])
 
@@ -135,19 +131,16 @@ async def safe_edit(callback: CallbackQuery, text, markup):
 @dp.callback_query(F.data == "main")
 async def back_to_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-
     await callback.message.answer(
         "🏠 Главное меню",
         reply_markup=main_menu()
     )
-
     await callback.answer()
 
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
     await callback.answer()
-
     asyncio.create_task(safe_edit(
         callback,
         "ℹ️ LuxRender — сервис генерации изображений.",
@@ -162,9 +155,7 @@ async def about(callback: CallbackQuery):
 @dp.callback_query(F.data == "generate")
 async def generate(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Generate.waiting_prompt)
-
     await callback.answer()
-
     asyncio.create_task(safe_edit(
         callback,
         "🖼 Отправьте текстовый промпт для генерации изображения:",
@@ -175,27 +166,15 @@ async def generate(callback: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "model")
 async def choose_model(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Generate.choosing_model)
-
     await callback.answer()
-
-    asyncio.create_task(safe_edit(
-        callback,
-        "🤖 Выберите модель:",
-        model_menu()
-    ))
+    asyncio.create_task(safe_edit(callback, "🤖 Выберите модель:", model_menu()))
 
 
 @dp.callback_query(F.data == "format")
 async def choose_format(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Generate.choosing_format)
-
     await callback.answer()
-
-    asyncio.create_task(safe_edit(
-        callback,
-        "📐 Выберите формат:",
-        format_menu()
-    ))
+    asyncio.create_task(safe_edit(callback, "📐 Выберите формат:", format_menu()))
 
 
 # =======================
@@ -209,18 +188,13 @@ MODELS = {
     "m4": "SeeDream 4.5",
 }
 
-
 @dp.callback_query(F.data.in_(MODELS.keys()))
 async def set_model(callback: CallbackQuery, state: FSMContext):
     model_name = MODELS[callback.data]
-
     update_model(callback.from_user.id, model_name)
-
-    await state.update_data(model=model_name)
     await state.set_state(Generate.waiting_prompt)
 
     await callback.answer("✅ Модель выбрана")
-
     asyncio.create_task(safe_edit(
         callback,
         f"🤖 Вы выбрали модель:\n\n{model_name}\n\nТеперь отправьте промпт:",
@@ -239,18 +213,13 @@ FORMATS = {
     "f4": "Original",
 }
 
-
 @dp.callback_query(F.data.in_(FORMATS.keys()))
 async def set_format(callback: CallbackQuery, state: FSMContext):
     format_value = FORMATS[callback.data]
-
     update_format(callback.from_user.id, format_value)
-
-    await state.update_data(format=format_value)
     await state.set_state(Generate.waiting_prompt)
 
     await callback.answer("✅ Формат выбран")
-
     asyncio.create_task(safe_edit(
         callback,
         f"📐 Вы выбрали формат:\n\n{format_value}\n\nТеперь отправьте промпт:",
@@ -277,9 +246,7 @@ async def process_prompt(message: Message, state: FSMContext):
 
     if balance < COST:
         await message.answer(
-            f"❌ Недостаточно средств.\n"
-            f"Баланс: {balance}₽\n"
-            f"Стоимость: {COST}₽",
+            f"❌ Недостаточно средств.\nБаланс: {balance}₽\nСтоимость: {COST}₽",
             reply_markup=main_menu()
         )
         await state.clear()
@@ -287,19 +254,30 @@ async def process_prompt(message: Message, state: FSMContext):
 
     deduct_balance(user_id, COST)
 
-    await message.answer(
-        f"🎨 Генерирую изображение...\n\n"
-        f"📝 Промпт: {message.text}\n"
-        f"🤖 Модель: {model}\n"
-        f"📐 Формат: {format_value}\n"
-        f"💰 Остаток: {balance - COST}₽"
+    await message.answer("🎨 Генерирую изображение... (до 20 сек)")
+
+    result = await generate_image_openrouter(
+        prompt=message.text,
+        model="google/gemini-2.5-flash-image-preview"
     )
+
+    if "error" in result:
+        await message.answer("❌ Ошибка генерации:\n" + str(result["error"]))
+        await state.clear()
+        return
+
+    img_bytes = result["image_bytes"]
+
+    await message.answer_photo(photo=img_bytes)
+
+    new_balance = get_user(user_id)[0]
+    await message.answer(f"💰 Остаток: {new_balance}₽")
 
     await state.clear()
 
 
 # =======================
-# BALANCE MENU
+# BALANCE
 # =======================
 
 @dp.callback_query(F.data == "balance")
@@ -308,10 +286,9 @@ async def balance(callback: CallbackQuery):
     balance_value = user[0] if user else 0
 
     await callback.answer()
-
     asyncio.create_task(safe_edit(
         callback,
-        f"💰 Ваш баланс: {balance_value}₽\n\nПополнение:",
+        f"💰 Ваш баланс: {balance_value}₽",
         balance_menu()
     ))
 
@@ -323,19 +300,15 @@ async def balance(callback: CallbackQuery):
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
 
-
 async def on_shutdown(app):
     await bot.delete_webhook()
 
-
 app = web.Application()
-
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
-
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
