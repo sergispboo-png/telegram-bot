@@ -235,7 +235,7 @@ async def start(message: Message, state: FSMContext):
 # ================= ГЕНЕРАЦИЯ (ИСПРАВЛЕННЫЕ ОТСТУПЫ) =================
 
 @dp.message(Generate.waiting_prompt)
-async def process_prompt(message: Message, state: FSMContext, generation_price: int):
+async def process_prompt(message: Message, state: FSMContext):
     if not await require_subscription(message.from_user.id, message):
         return
 
@@ -279,7 +279,8 @@ async def process_prompt(message: Message, state: FSMContext, generation_price: 
         file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
         await message.answer_photo(file)
 
-        deduct_balance(user_id, generation_price)
+        price = MODEL_PRICES.get(model, GENERATION_PRICE)
+        deduct_balance(user_id, price)
         add_generation(user_id, model)
 
         new_balance = get_user(user_id)[0]
