@@ -121,8 +121,11 @@ async def start(message: Message, state: FSMContext):
 
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
-        "Премиальная AI-генерация изображений\n"
-        "🎨 Стоимость генерации — 10₽\n\n"
+        "🚀 Премиальная AI-генерация изображений\n\n"
+        "🎨 Создавайте креативы\n"
+        "🔥 Улучшайте фотографии\n"
+        "💼 Делайте рекламные макеты\n\n"
+        "💎 Стоимость — 10₽ за генерацию\n\n"
         "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
@@ -142,14 +145,12 @@ async def back_main(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# ================= О СЕРВИСЕ =================
-
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
     await callback.message.edit_text(
         "ℹ️ <b>О сервисе LuxRender</b>\n\n"
-        "AI генерация изображений.\n"
-        "Стоимость — 10₽ за изображение.",
+        "AI-генерация изображений.\n"
+        "Стоимость — 10₽.",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
@@ -226,8 +227,6 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# ================= ПОЛУЧЕНИЕ ФОТО =================
-
 @dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
     file_id = message.photo[-1].file_id
@@ -242,8 +241,6 @@ async def receive_image(message: Message, state: FSMContext):
     await state.set_state(Generate.waiting_prompt)
 
 
-# ================= ПРОМПТ =================
-
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
@@ -256,41 +253,47 @@ async def process_prompt(message: Message, state: FSMContext):
 
     status = await message.answer("🎨 Генерирую...")
 
-    data = await state.get_data()
-    user_image = data.get("user_image")
+    try:
+        data = await state.get_data()
+        user_image = data.get("user_image")
 
-    result = await generate_image_openrouter(
-        prompt=message.text,
-        model=model,
-        format_value=format_value,
-        user_image=user_image
-    )
+        result = await generate_image_openrouter(
+            prompt=message.text,
+            model=model,
+            format_value=format_value,
+            user_image=user_image
+        )
 
-    if "image_bytes" not in result:
-        await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
-        return
+        if "image_bytes" not in result:
+            ERROR_LOG.append(str(result))
+            await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
+            return
 
-    image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
-    buffer = BytesIO()
-    image.save(buffer, format="JPEG")
+        image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG")
 
-    file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-    await message.answer_photo(file)
+        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+        await message.answer_photo(file)
 
-    deduct_balance(user_id, GENERATION_PRICE)
-    add_generation(user_id, model)
+        deduct_balance(user_id, GENERATION_PRICE)
+        add_generation(user_id, model)
 
-    new_balance = get_user(user_id)[0]
+        new_balance = get_user(user_id)[0]
 
-    await message.answer(
-        f"✅ Готово!\n💎 Остаток: {new_balance}₽",
-        reply_markup=after_generation_menu()
-    )
+        await message.answer(
+            f"✅ Готово!\n💎 Остаток: {new_balance}₽",
+            reply_markup=after_generation_menu()
+        )
 
-    await state.clear()
+        await state.clear()
+
+    except Exception as e:
+        ERROR_LOG.append(str(e))
+        await status.edit_text("❌ Ошибка сервера.", reply_markup=after_generation_menu())
 
 
-# ================= АДМИН КОМАНДЫ =================
+# ================= АДМИН =================
 
 @dp.message(Command("stats"))
 async def admin_stats(message: Message):
@@ -331,13 +334,26 @@ async def admin_broadcast(message: Message):
     text = message.text.replace("/broadcast ", "")
     users = get_all_user_ids()
 
+    sent = 0
     for user_id in users:
         try:
             await bot.send_message(user_id, text)
+            sent += 1
         except:
             pass
 
-    await message.answer("Рассылка завершена.")
+    await message.answer(f"Рассылка завершена. Отправлено: {sent}")
+
+
+@dp.message(Command("logs"))
+async def admin_logs(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    if not ERROR_LOG:
+        await message.answer("Ошибок нет.")
+    else:
+        await message.answer("\n".join(ERROR_LOG[-10:]))
 
 
 # ================= WEBHOOK =================
