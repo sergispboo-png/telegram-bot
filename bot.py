@@ -137,11 +137,13 @@ async def start(message: Message, state: FSMContext):
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.edit_text(
+
+    await callback.message.answer(
         "🏠 <b>Главное меню</b>",
         parse_mode="HTML",
         reply_markup=main_menu()
     )
+
     await callback.answer()
 
 
