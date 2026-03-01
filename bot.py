@@ -59,8 +59,6 @@ dp = Dispatcher(storage=MemoryStorage())
 
 ERROR_LOG = []
 
-# ================= ЦЕНА =================
-
 GENERATION_PRICE = 10
 
 
@@ -150,20 +148,81 @@ def after_generation_menu():
 async def start(message: Message, state: FSMContext):
     await state.clear()
     add_user(message.from_user.id)
-
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
-        "Премиальная AI-генерация изображений нового уровня.\n\n"
-        "🎨 Создавайте визуал для соцсетей\n"
-        "🚀 Делайте рекламные креативы\n"
-        "💼 Развивайте бизнес-проекты\n\n"
+        "Премиальная AI-генерация изображений.\n\n"
         "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
     )
 
 
+# ================= НАВИГАЦИЯ =================
+
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "generate")
+async def choose_model(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    if not await require_subscription(callback.from_user.id, callback.message):
+        return
+    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("model_"))
+async def choose_mode(callback: CallbackQuery):
+    update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
+    await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("mode_"))
+async def choose_format(callback: CallbackQuery, state: FSMContext):
+    mode = callback.data.split("_")[1]
+    await state.update_data(mode=mode)
+    await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("format_"))
+async def after_format(callback: CallbackQuery, state: FSMContext):
+    format_value = callback.data.replace("format_", "").replace("_", ":")
+    update_format(callback.from_user.id, format_value)
+
+    data = await state.get_data()
+    mode = data.get("mode")
+
+    if mode == "text":
+        await callback.message.edit_text("✍ Напишите промпт:")
+        await state.set_state(Generate.waiting_prompt)
+    else:
+        await callback.message.edit_text("🖼 Отправьте изображение:")
+        await state.set_state(Generate.waiting_image)
+
+    await callback.answer()
+
+
 # ================= ГЕНЕРАЦИЯ =================
+
+@dp.message(Generate.waiting_image)
+async def receive_image(message: Message, state: FSMContext):
+    file_id = message.photo[-1].file_id
+    file = await bot.get_file(file_id)
+    downloaded = await bot.download_file(file.file_path)
+
+    image_bytes = downloaded.read()
+    image_base64 = base64.b64encode(image_bytes).decode()
+
+    await state.update_data(user_image=image_base64)
+    await message.answer("✍ Теперь напишите промпт:")
+    await state.set_state(Generate.waiting_prompt)
+
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
@@ -180,7 +239,6 @@ async def process_prompt(message: Message, state: FSMContext):
 
     balance, model, format_value = user
 
-    # Проверка баланса
     if balance < GENERATION_PRICE:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
@@ -195,9 +253,7 @@ async def process_prompt(message: Message, state: FSMContext):
         )
         return
 
-    status = await message.answer(
-        f"🎨 Генерирую...\n💰 Стоимость: {GENERATION_PRICE}₽"
-    )
+    status = await message.answer("🎨 Генерирую...")
 
     try:
         data = await state.get_data()
@@ -212,7 +268,6 @@ async def process_prompt(message: Message, state: FSMContext):
 
         if "image_bytes" not in result:
             ERROR_LOG.append(str(result))
-
             await status.edit_text(
                 "❌ Ошибка генерации.",
                 reply_markup=after_generation_menu()
@@ -240,7 +295,6 @@ async def process_prompt(message: Message, state: FSMContext):
 
     except Exception as e:
         ERROR_LOG.append(str(e))
-
         await status.edit_text(
             "❌ Ошибка генерации.",
             reply_markup=after_generation_menu()
