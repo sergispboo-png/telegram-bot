@@ -27,32 +27,47 @@ from database import (
     deduct_balance,
     update_balance,
     get_users_count,
+    get_generations_count,
+    get_payments_stats,
+    get_all_user_ids,
     add_generation,
 )
 
 from generator import generate_image_openrouter
 
-logging.basicConfig(level=logging.WARNING)
+# ================== НАСТРОЙКИ ==================
 
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "YourDesignerSpb"
+ADMIN_ID = 373830941
 
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
 
+# ================== ЛОГИ (ЧИСТЫЕ) ==================
+
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
+logging.getLogger("aiogram.event").setLevel(logging.WARNING)
+
+# ================== INIT ==================
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+ERROR_LOG = []
 
-# ================= FSM ================= #
+# ================== FSM ==================
 
 class Generate(StatesGroup):
     waiting_image = State()
     waiting_prompt = State()
     editing = State()
 
+# ================== ВСПОМОГАТЕЛЬНОЕ ==================
 
-# ================= SUBSCRIPTION CHECK ================= #
+def is_admin(user_id: int):
+    return user_id == ADMIN_ID
 
 async def check_subscription(user_id):
     try:
@@ -61,11 +76,10 @@ async def check_subscription(user_id):
     except:
         return False
 
-
 async def require_subscription(user_id, message):
     if not await check_subscription(user_id):
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Подписаться", url=f"https://t.me/{CHANNEL_USERNAME}")],
+            [InlineKeyboardButton(text="📢 Подписаться", url=f"https://t.me/{CHANNEL_USERNAME}")]
         ])
         await message.answer(
             "❗ Для использования бота необходимо подписаться на канал.",
@@ -74,15 +88,13 @@ async def require_subscription(user_id, message):
         return False
     return True
 
-
-# ================= UI ================= #
+# ================== UI ==================
 
 MODEL_NAMES = {
     "nano": "Nano Banana",
     "pro": "Nano Banana Pro",
     "seedream": "SeeDream"
 }
-
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -92,7 +104,6 @@ def main_menu():
         [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
     ])
 
-
 def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Nano Banana", callback_data="model_nano")],
@@ -101,14 +112,12 @@ def model_menu():
         [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
     ])
 
-
 def mode_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📝 Только текст", callback_data="mode_text")],
         [InlineKeyboardButton(text="🖼 Фото + текст", callback_data="mode_image")],
         [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
     ])
-
 
 def format_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -122,22 +131,19 @@ def format_menu():
         [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
     ])
 
-
 def after_generation_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔁 Повторить генерацию", callback_data="edit_start")],
+        [InlineKeyboardButton(text="🔁 Повторить", callback_data="edit_start")],
         [InlineKeyboardButton(text="✏ Изменить промпт", callback_data="edit_prompt")],
         [InlineKeyboardButton(text="🖼 Добавить фото", callback_data="edit_add_photo")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
     ])
 
-
-# ================= START ================= #
+# ================== START ==================
 
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.clear()
-
     add_user(message.from_user.id)
 
     await message.answer(
@@ -151,7 +157,7 @@ async def start(message: Message, state: FSMContext):
         reply_markup=main_menu()
     )
 
-# ================= NAVIGATION ================= #
+# ================== НАВИГАЦИЯ ==================
 
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery, state: FSMContext):
@@ -159,35 +165,27 @@ async def back_main(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
     await callback.answer()
 
-
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery):
     if not await require_subscription(callback.from_user.id, callback.message):
         return
-
     await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
-
 
 @dp.callback_query(F.data.startswith("model_"))
 async def choose_mode(callback: CallbackQuery, state: FSMContext):
     model_key = callback.data.split("_")[1]
-
     update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
     await state.update_data(selected_model=model_key)
-
     await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
     await callback.answer()
-
 
 @dp.callback_query(F.data.startswith("mode_"))
 async def choose_format(callback: CallbackQuery, state: FSMContext):
     mode = callback.data.split("_")[1]
     await state.update_data(mode=mode)
-
     await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
     await callback.answer()
-
 
 @dp.callback_query(F.data.startswith("format_"))
 async def after_format(callback: CallbackQuery, state: FSMContext):
@@ -206,12 +204,10 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
 
     await callback.answer()
 
-
-# ================= IMAGE ================= #
+# ================== ПОЛУЧЕНИЕ ФОТО ==================
 
 @dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
-
     file_id = message.photo[-1].file_id
     file = await bot.get_file(file_id)
     downloaded = await bot.download_file(file.file_path)
@@ -223,18 +219,15 @@ async def receive_image(message: Message, state: FSMContext):
     await message.answer("✍ Теперь напишите промпт:")
     await state.set_state(Generate.waiting_prompt)
 
-
-# ================= GENERATION ================= #
+# ================== ГЕНЕРАЦИЯ ==================
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
-
     if not await require_subscription(message.from_user.id, message):
         return
 
     user_id = message.from_user.id
     user = get_user(user_id)
-
     balance, model, format_value = user
     COST = 10
 
@@ -264,11 +257,10 @@ async def process_prompt(message: Message, state: FSMContext):
         image.save(buffer, format="JPEG", quality=85)
 
         file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-        sent = await message.answer_photo(file)
+        await message.answer_photo(file)
 
-        if sent:
-            deduct_balance(user_id, COST)
-            add_generation(user_id, model)
+        deduct_balance(user_id, COST)
+        add_generation(user_id, model)
 
         new_balance = get_user(user_id)[0]
 
@@ -280,20 +272,85 @@ async def process_prompt(message: Message, state: FSMContext):
         await state.set_state(Generate.editing)
 
     except Exception as e:
-        logging.exception("Generation error")
+        ERROR_LOG.append(str(e))
         await status.edit_text("❌ Ошибка генерации.")
 
+# ================== АДМИН ==================
 
-# ================= WEBHOOK ================= #
+@dp.message(F.text == "/stats")
+async def admin_stats(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+
+    users = get_users_count()
+    generations = get_generations_count()
+    payments_count, payments_sum = get_payments_stats()
+
+    await message.answer(
+        f"📊 Статистика\n\n"
+        f"👥 Пользователей: {users}\n"
+        f"🎨 Генераций: {generations}\n"
+        f"💳 Платежей: {payments_count}\n"
+        f"💰 Доход: {payments_sum} ₽"
+    )
+
+@dp.message(F.text.startswith("/broadcast "))
+async def admin_broadcast(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+
+    text = message.text.replace("/broadcast ", "")
+    users = get_all_user_ids()
+
+    sent, failed = 0, 0
+
+    for user_id in users:
+        try:
+            await bot.send_message(user_id, text)
+            sent += 1
+        except:
+            failed += 1
+
+    await message.answer(f"Рассылка завершена\nОтправлено: {sent}\nОшибок: {failed}")
+
+@dp.message(F.text.startswith("/addbalance "))
+async def admin_add_balance(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        _, user_id, amount = message.text.split()
+        update_balance(int(user_id), int(amount))
+        await message.answer("Баланс обновлён.")
+    except:
+        await message.answer("Формат: /addbalance USER_ID СУММА")
+
+@dp.message(F.text == "/logs")
+async def admin_logs(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+
+    if not ERROR_LOG:
+        await message.answer("Ошибок нет.")
+        return
+
+    await message.answer("\n".join(ERROR_LOG[-10:]))
+
+# ================== ERROR HANDLER ==================
+
+@dp.errors()
+async def global_error_handler(event, exception):
+    ERROR_LOG.append(str(exception))
+    return True
+
+# ================== WEBHOOK ==================
 
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
 
-
 async def on_shutdown(app):
     await bot.delete_webhook()
     await bot.session.close()
-
 
 app = web.Application()
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
