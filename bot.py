@@ -133,20 +133,22 @@ async def start(message: Message, state: FSMContext):
 
         caption = (
             "✨ <b>LuxRender</b>\n\n"
-            "Премиальная AI-генерация изображений.\n\n"
+            "Премиальная AI-генерация изображений нового уровня.\n\n"
             f"👥 Уже <b>{users_count}</b> пользователей\n\n"
-            "🚀 Нажмите «Сгенерировать изображение», чтобы начать."
+            "👇 Выберите действие ниже"
         )
 
         await message.answer_photo(
             banner,
             caption=caption,
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=main_menu()   # ← ВАЖНО
         )
 
+        return
+
+    # Если пользователь уже есть
     await message.answer("🏠 Главное меню", reply_markup=main_menu())
-
-
 # ================= SUB CHECK ================= #
 
 @dp.callback_query(F.data == "check_sub")
