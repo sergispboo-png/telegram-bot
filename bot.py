@@ -169,14 +169,47 @@ def after_generation_menu():
 
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
+
     await state.clear()
 
     if not await require_subscription(message.from_user.id, message):
         return
 
-    add_user(message.from_user.id)
-    await message.answer("🏠 Главное меню", reply_markup=main_menu())
+    user = get_user(message.from_user.id)
 
+    # Новый пользователь
+    if not user:
+        add_user(message.from_user.id)
+
+        users_count = get_users_count()
+
+        banner = BufferedInputFile(
+            open("banner.jpg", "rb").read(),
+            filename="banner.jpg"
+        )
+
+        caption = (
+            "✨ <b>Pixel AI</b>\n\n"
+            "Премиальная AI-генерация изображений.\n\n"
+            "🧠 Nano Banana / Pro / SeeDream\n"
+            "🎯 Точная передача промпта\n"
+            "📐 Разные форматы генерации\n"
+            "⚡ Быстрая обработка\n\n"
+            f"👥 Уже <b>{users_count}</b> пользователей\n\n"
+            "🚀 Нажмите «Сгенерировать изображение», чтобы начать."
+        )
+
+        await message.answer_photo(
+            banner,
+            caption=caption,
+            parse_mode="HTML"
+        )
+
+        await message.answer("🏠 Главное меню", reply_markup=main_menu())
+        return
+
+    # Старый пользователь
+    await message.answer("🏠 Главное меню", reply_markup=main_menu())
 
 # ================= SUB CONFIRM ================= #
 
