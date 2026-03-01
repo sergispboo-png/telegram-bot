@@ -134,6 +134,7 @@ def format_menu():
 
 def after_generation_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
         [InlineKeyboardButton(text="🔁 Повторить", callback_data="generate")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
     ])
@@ -158,13 +159,30 @@ async def start(message: Message, state: FSMContext):
     )
 
 
+# ================= НАВИГАЦИЯ =================
+
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text(
+        "🏠 Главное меню",
+        reply_markup=main_menu()
+    )
+    await callback.answer()
+
+
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
 
 @dp.callback_query(F.data == "profile")
 async def profile(callback: CallbackQuery):
     user_id = callback.from_user.id
     user = get_user(user_id)
-    balance = user[0] if user else 0
+
+    if not user:
+        add_user(user_id)
+        user = get_user(user_id)
+
+    balance = user[0]
 
     from database import conn
     cursor = conn.cursor()
@@ -190,9 +208,12 @@ async def profile(callback: CallbackQuery):
 # ================= ГЕНЕРАЦИЯ =================
 
 @dp.callback_query(F.data == "generate")
-async def choose_model(callback: CallbackQuery):
+async def choose_model(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+
     if not await require_subscription(callback.from_user.id, callback.message):
         return
+
     await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
@@ -250,8 +271,13 @@ async def process_prompt(message: Message, state: FSMContext):
         return
 
     user_id = message.from_user.id
-    balance, model, format_value = get_user(user_id)
+    user = get_user(user_id)
 
+    if not user:
+        add_user(user_id)
+        user = get_user(user_id)
+
+    balance, model, format_value = user
     COST = 10
 
     if balance < COST:
