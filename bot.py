@@ -255,9 +255,9 @@ async def process_prompt(message: Message, state: FSMContext):
             user_image=user_image
         )
 
-        if "image_bytes" not in result:
-            await status.edit_text("❌ Ошибка генерации.")
-            return
+       if "image_bytes" not in result:
+    await status.edit_text(f"❌ Ошибка генерации:\n{result}")
+    return
 
         image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
         buffer = BytesIO()
