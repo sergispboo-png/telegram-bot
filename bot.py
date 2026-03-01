@@ -58,7 +58,6 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 ERROR_LOG = []
-
 GENERATION_PRICE = 10
 
 
@@ -67,29 +66,6 @@ GENERATION_PRICE = 10
 class Generate(StatesGroup):
     waiting_image = State()
     waiting_prompt = State()
-
-
-# ================= ПРОВЕРКА ПОДПИСКИ =================
-
-async def check_subscription(user_id):
-    try:
-        member = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-
-async def require_subscription(user_id, message):
-    if not await check_subscription(user_id):
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Подписаться", url=f"https://t.me/{CHANNEL_USERNAME}")]
-        ])
-        await message.answer(
-            "❗ Для использования бота необходимо подписаться на канал.",
-            reply_markup=keyboard
-        )
-        return False
-    return True
 
 
 # ================= UI =================
@@ -148,13 +124,40 @@ def after_generation_menu():
 async def start(message: Message, state: FSMContext):
     await state.clear()
     add_user(message.from_user.id)
-    await message.answer(
-        "✨ <b>LuxRender</b>\n\n"
-        "Премиальная AI-генерация изображений.\n\n"
-        "👇 Выберите действие:",
-        parse_mode="HTML",
-        reply_markup=main_menu()
+    await message.answer("🏠 Главное меню", reply_markup=main_menu())
+
+
+# ================= ЛИЧНЫЙ КАБИНЕТ =================
+
+@dp.callback_query(F.data == "profile")
+async def profile(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    user = get_user(user_id)
+
+    if not user:
+        add_user(user_id)
+        user = get_user(user_id)
+
+    balance = user[0]
+
+    from database import conn
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
+    total_generations = cursor.fetchone()[0]
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+    ])
+
+    await callback.message.edit_text(
+        f"👤 Личный кабинет\n\n"
+        f"ID: {user_id}\n"
+        f"Баланс: {balance}₽\n"
+        f"Генераций: {total_generations}",
+        reply_markup=keyboard
     )
+    await callback.answer()
 
 
 # ================= НАВИГАЦИЯ =================
@@ -167,10 +170,7 @@ async def back_main(callback: CallbackQuery, state: FSMContext):
 
 
 @dp.callback_query(F.data == "generate")
-async def choose_model(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    if not await require_subscription(callback.from_user.id, callback.message):
-        return
+async def choose_model(callback: CallbackQuery):
     await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
@@ -210,68 +210,30 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
 
 # ================= ГЕНЕРАЦИЯ =================
 
-@dp.message(Generate.waiting_image)
-async def receive_image(message: Message, state: FSMContext):
-    file_id = message.photo[-1].file_id
-    file = await bot.get_file(file_id)
-    downloaded = await bot.download_file(file.file_path)
-
-    image_bytes = downloaded.read()
-    image_base64 = base64.b64encode(image_bytes).decode()
-
-    await state.update_data(user_image=image_base64)
-    await message.answer("✍ Теперь напишите промпт:")
-    await state.set_state(Generate.waiting_prompt)
-
-
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
-
-    if not await require_subscription(message.from_user.id, message):
-        return
 
     user_id = message.from_user.id
     user = get_user(user_id)
 
-    if not user:
-        add_user(user_id)
-        user = get_user(user_id)
-
     balance, model, format_value = user
 
     if balance < GENERATION_PRICE:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-        ])
-
-        await message.answer(
-            f"❌ Недостаточно средств.\n\n"
-            f"Стоимость генерации: {GENERATION_PRICE}₽\n"
-            f"Ваш баланс: {balance}₽",
-            reply_markup=keyboard
-        )
+        await message.answer("❌ Недостаточно средств.", reply_markup=main_menu())
         return
 
     status = await message.answer("🎨 Генерирую...")
 
     try:
-        data = await state.get_data()
-        user_image = data.get("user_image")
-
         result = await generate_image_openrouter(
             prompt=message.text,
             model=model,
             format_value=format_value,
-            user_image=user_image
         )
 
         if "image_bytes" not in result:
             ERROR_LOG.append(str(result))
-            await status.edit_text(
-                "❌ Ошибка генерации.",
-                reply_markup=after_generation_menu()
-            )
+            await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
             return
 
         image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
@@ -284,21 +246,32 @@ async def process_prompt(message: Message, state: FSMContext):
         deduct_balance(user_id, GENERATION_PRICE)
         add_generation(user_id, model)
 
-        new_balance = get_user(user_id)[0]
-
-        await message.answer(
-            f"✅ Готово!\n💎 Баланс: {new_balance}",
-            reply_markup=after_generation_menu()
-        )
-
+        await message.answer("✅ Готово!", reply_markup=after_generation_menu())
         await state.clear()
 
     except Exception as e:
         ERROR_LOG.append(str(e))
-        await status.edit_text(
-            "❌ Ошибка генерации.",
-            reply_markup=after_generation_menu()
-        )
+        await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
+
+
+# ================= АДМИН =================
+
+@dp.message(F.text == "/stats")
+async def admin_stats(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    users = get_users_count()
+    generations = get_generations_count()
+    payments_count, payments_sum = get_payments_stats()
+
+    await message.answer(
+        f"Статистика:\n"
+        f"Пользователей: {users}\n"
+        f"Генераций: {generations}\n"
+        f"Платежей: {payments_count}\n"
+        f"Доход: {payments_sum}₽"
+    )
 
 
 # ================= WEBHOOK =================
