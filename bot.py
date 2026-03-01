@@ -49,7 +49,7 @@ WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
 CHANNEL_USERNAME = "@YourDesignerSpb"
 CHANNEL_URL = "https://t.me/YourDesignerSpb"
 
-ADMINS = [123456789]  # ВСТАВЬ СВОЙ TELEGRAM ID
+ADMINS = [373830941]  # ВСТАВЬ СВОЙ TELEGRAM ID
 
 
 bot = Bot(token=TOKEN)
