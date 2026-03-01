@@ -122,67 +122,10 @@ async def start(message: Message, state: FSMContext):
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
         "Премиальная AI-генерация изображений нового уровня.\n\n"
-        "🎨 Создавайте визуал для соцсетей\n"
-        "🚀 Делайте рекламные креативы\n"
-        "💼 Развивайте бизнес-проекты\n\n"
         "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
     )
-
-
-# ================= О СЕРВИСЕ =================
-
-@dp.callback_query(F.data == "about")
-async def about(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "ℹ️ <b>О сервисе LuxRender</b>\n\n"
-        "AI генерация изображений.\n"
-        "Стоимость одной генерации — 10₽.",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-        ])
-    )
-    await callback.answer()
-
-
-# ================= ЛИЧНЫЙ КАБИНЕТ =================
-
-@dp.callback_query(F.data == "profile")
-async def profile(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    balance = get_user(user_id)[0]
-
-    from database import conn
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
-    total_generations = cursor.fetchone()[0]
-
-    await callback.message.edit_text(
-        f"👤 <b>Личный кабинет</b>\n\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
-        f"💰 Баланс: <b>{balance}₽</b>\n"
-        f"🎨 Генераций: <b>{total_generations}</b>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-        ])
-    )
-    await callback.answer()
-
-
-# ================= НАВИГАЦИЯ =================
-
-@dp.callback_query(F.data == "back_main")
-async def back_main(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text(
-        "🏠 Главное меню",
-        reply_markup=main_menu()
-    )
-    await callback.answer()
 
 
 # ================= ГЕНЕРАЦИЯ =================
@@ -227,6 +170,30 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+# ---------- ПОЛУЧЕНИЕ ФОТО ----------
+
+@dp.message(Generate.waiting_image)
+async def receive_image(message: Message, state: FSMContext):
+
+    if not message.photo:
+        await message.answer("❌ Пожалуйста, отправьте изображение.")
+        return
+
+    file_id = message.photo[-1].file_id
+    file = await bot.get_file(file_id)
+    downloaded = await bot.download_file(file.file_path)
+
+    image_bytes = downloaded.read()
+    image_base64 = base64.b64encode(image_bytes).decode()
+
+    await state.update_data(user_image=image_base64)
+
+    await message.answer("✍ Теперь напишите промпт:")
+    await state.set_state(Generate.waiting_prompt)
+
+
+# ---------- ОБРАБОТКА ПРОМПТА ----------
+
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
@@ -235,9 +202,7 @@ async def process_prompt(message: Message, state: FSMContext):
 
     if balance < GENERATION_PRICE:
         await message.answer(
-            f"❌ Недостаточно средств.\n\n"
-            f"Стоимость: {GENERATION_PRICE}₽\n"
-            f"Баланс: {balance}₽",
+            f"❌ Недостаточно средств.\nБаланс: {balance}₽",
             reply_markup=main_menu()
         )
         return
@@ -245,10 +210,14 @@ async def process_prompt(message: Message, state: FSMContext):
     status = await message.answer("🎨 Генерирую...")
 
     try:
+        data = await state.get_data()
+        user_image = data.get("user_image")
+
         result = await generate_image_openrouter(
             prompt=message.text,
             model=model,
             format_value=format_value,
+            user_image=user_image
         )
 
         if "image_bytes" not in result:
@@ -274,28 +243,9 @@ async def process_prompt(message: Message, state: FSMContext):
 
         await state.clear()
 
-    except:
+    except Exception as e:
+        ERROR_LOG.append(str(e))
         await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
-
-
-# ================= АДМИН =================
-
-@dp.message(F.text == "/stats")
-async def admin_stats(message: Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    users = get_users_count()
-    generations = get_generations_count()
-    payments_count, payments_sum = get_payments_stats()
-
-    await message.answer(
-        f"📊 Статистика\n\n"
-        f"👥 Пользователей: {users}\n"
-        f"🎨 Генераций: {generations}\n"
-        f"💳 Платежей: {payments_count}\n"
-        f"💰 Доход: {payments_sum}₽"
-    )
 
 
 # ================= WEBHOOK =================
