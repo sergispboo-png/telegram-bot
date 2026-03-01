@@ -71,6 +71,12 @@ MODEL_PRICES = {
     "seedream_model": GENERATION_PRICE,
 }
 
+# ================= FSM =================
+
+class Generate(StatesGroup):
+    waiting_image = State()
+    waiting_prompt = State()
+
 # ================= MIDDLEWARE БАЛАНСА =================
 
 from aiogram import BaseMiddleware
@@ -92,7 +98,7 @@ class BalanceMiddleware(BaseMiddleware):
         state = data.get("state")
         if state:
             current_state = await state.get_state()
-            if current_state != "Generate:waiting_prompt":
+            if current_state != Generate.waiting_prompt.state:
                 return await handler(event, data)
 
         user_id = event.from_user.id
@@ -120,43 +126,6 @@ class BalanceMiddleware(BaseMiddleware):
             return
 
         return await handler(event, data)
-
-
-
-# ================= FSM =================
-
-class Generate(StatesGroup):
-    waiting_image = State()
-    waiting_prompt = State()
-
-
-# ================= ПРОВЕРКА ПОДПИСКИ =================
-
-async def check_subscription(user_id):
-    try:
-        member = await bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-
-async def require_subscription(user_id, message):
-    if not await check_subscription(user_id):
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Подписаться", url=f"https://t.me/{CHANNEL_USERNAME}")]
-        ])
-        await message.answer(
-            "❗ Для использования бота необходимо подписаться на канал.",
-            reply_markup=keyboard
-        )
-        return False
-    return True
-
-# ================= FSM =================
-
-class Generate(StatesGroup):
-    waiting_image = State()
-    waiting_prompt = State()
 
 
 dp.message.middleware(BalanceMiddleware())
