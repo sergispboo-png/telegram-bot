@@ -32,7 +32,7 @@ from database import (
 
 from generator import generate_image_openrouter
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "YourDesignerSpb"
@@ -140,15 +140,16 @@ async def start(message: Message, state: FSMContext):
 
     add_user(message.from_user.id)
 
-    users_count = get_users_count()
-
     await message.answer(
-        f"✨ <b>LuxRender</b>\n\n"
-        "Выберите действие:",
+        "✨ <b>LuxRender</b>\n\n"
+        "Премиальная AI-генерация изображений нового уровня.\n\n"
+        "🎨 Создавайте визуал для соцсетей\n"
+        "🚀 Делайте рекламные креативы\n"
+        "💼 Развивайте бизнес-проекты\n\n"
+        "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
     )
-
 
 # ================= NAVIGATION ================= #
 
