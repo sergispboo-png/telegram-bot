@@ -239,6 +239,22 @@ async def choose_mode(callback: CallbackQuery, state: FSMContext):
 async def choose_format(callback: CallbackQuery):
     await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
     await callback.answer()
+    @dp.callback_query(F.data.startswith("format_"))
+async def after_format(callback: CallbackQuery, state: FSMContext):
+    format_value = callback.data.split("_")[1]
+    update_format(callback.from_user.id, format_value)
+
+    data = await state.get_data()
+    mode = data.get("mode")
+
+    if mode == "text":
+        await callback.message.edit_text("✍ Напишите промпт:")
+        await state.set_state(Generate.waiting_prompt)
+    else:
+        await callback.message.edit_text("🖼 Отправьте изображение:")
+        await state.set_state(Generate.waiting_image)
+
+    await callback.answer()
 
 # ================== WEBHOOK ==================
 
