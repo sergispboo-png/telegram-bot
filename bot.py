@@ -121,11 +121,64 @@ async def start(message: Message, state: FSMContext):
 
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
-        "Премиальная AI-генерация изображений нового уровня.\n\n"
+        "Премиальная AI-генерация изображений.\n\n"
         "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
     )
+
+
+# ================= О СЕРВИСЕ =================
+
+@dp.callback_query(F.data == "about")
+async def about(callback: CallbackQuery):
+    await callback.message.answer(
+        "ℹ️ <b>О сервисе LuxRender</b>\n\n"
+        "Стоимость генерации — 10₽",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+        ])
+    )
+    await callback.answer()
+
+
+# ================= НАВИГАЦИЯ =================
+
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.answer(
+        "🏠 Главное меню",
+        reply_markup=main_menu()
+    )
+    await callback.answer()
+
+
+# ================= ЛИЧНЫЙ КАБИНЕТ =================
+
+@dp.callback_query(F.data == "profile")
+async def profile(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    balance = get_user(user_id)[0]
+
+    from database import conn
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
+    total_generations = cursor.fetchone()[0]
+
+    await callback.message.answer(
+        f"👤 <b>Личный кабинет</b>\n\n"
+        f"🆔 ID: <code>{user_id}</code>\n"
+        f"💰 Баланс: <b>{balance}₽</b>\n"
+        f"🎨 Генераций: <b>{total_generations}</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+        ])
+    )
+    await callback.answer()
 
 
 # ================= ГЕНЕРАЦИЯ =================
@@ -133,14 +186,14 @@ async def start(message: Message, state: FSMContext):
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.message.answer("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("model_"))
 async def choose_mode(callback: CallbackQuery):
     update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
-    await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
+    await callback.message.answer("⚙ Выберите режим:", reply_markup=mode_menu())
     await callback.answer()
 
 
@@ -148,7 +201,7 @@ async def choose_mode(callback: CallbackQuery):
 async def choose_format(callback: CallbackQuery, state: FSMContext):
     mode = callback.data.split("_")[1]
     await state.update_data(mode=mode)
-    await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
+    await callback.message.answer("📐 Выберите формат:", reply_markup=format_menu())
     await callback.answer()
 
 
@@ -161,10 +214,10 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
     mode = data.get("mode")
 
     if mode == "text":
-        await callback.message.edit_text("✍ Напишите промпт:")
+        await callback.message.answer("✍ Напишите промпт:")
         await state.set_state(Generate.waiting_prompt)
     else:
-        await callback.message.edit_text("🖼 Отправьте изображение:")
+        await callback.message.answer("🖼 Отправьте изображение:")
         await state.set_state(Generate.waiting_image)
 
     await callback.answer()
@@ -174,10 +227,6 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
 
 @dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
-
-    if not message.photo:
-        await message.answer("❌ Пожалуйста, отправьте изображение.")
-        return
 
     file_id = message.photo[-1].file_id
     file = await bot.get_file(file_id)
@@ -192,7 +241,7 @@ async def receive_image(message: Message, state: FSMContext):
     await state.set_state(Generate.waiting_prompt)
 
 
-# ---------- ОБРАБОТКА ПРОМПТА ----------
+# ---------- ПРОМПТ ----------
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
@@ -209,43 +258,38 @@ async def process_prompt(message: Message, state: FSMContext):
 
     status = await message.answer("🎨 Генерирую...")
 
-    try:
-        data = await state.get_data()
-        user_image = data.get("user_image")
+    data = await state.get_data()
+    user_image = data.get("user_image")
 
-        result = await generate_image_openrouter(
-            prompt=message.text,
-            model=model,
-            format_value=format_value,
-            user_image=user_image
-        )
+    result = await generate_image_openrouter(
+        prompt=message.text,
+        model=model,
+        format_value=format_value,
+        user_image=user_image
+    )
 
-        if "image_bytes" not in result:
-            await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
-            return
-
-        image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
-        buffer = BytesIO()
-        image.save(buffer, format="JPEG", quality=90)
-
-        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-        await message.answer_photo(file)
-
-        deduct_balance(user_id, GENERATION_PRICE)
-        add_generation(user_id, model)
-
-        new_balance = get_user(user_id)[0]
-
-        await message.answer(
-            f"✅ Готово!\n💎 Остаток: {new_balance}₽",
-            reply_markup=after_generation_menu()
-        )
-
-        await state.clear()
-
-    except Exception as e:
-        ERROR_LOG.append(str(e))
+    if "image_bytes" not in result:
         await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
+        return
+
+    image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=90)
+
+    file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+    await message.answer_photo(file)
+
+    deduct_balance(user_id, GENERATION_PRICE)
+    add_generation(user_id, model)
+
+    new_balance = get_user(user_id)[0]
+
+    await message.answer(
+        f"✅ Готово!\n💎 Остаток: {new_balance}₽",
+        reply_markup=after_generation_menu()
+    )
+
+    await state.clear()
 
 
 # ================= WEBHOOK =================
