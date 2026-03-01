@@ -124,7 +124,6 @@ class BalanceMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-dp.message.middleware(BalanceMiddleware())
 
 
 # ================= FSM =================
@@ -156,7 +155,14 @@ async def require_subscription(user_id, message):
         return False
     return True
 
+# ================= FSM =================
 
+class Generate(StatesGroup):
+    waiting_image = State()
+    waiting_prompt = State()
+
+
+dp.message.middleware(BalanceMiddleware())
 # ================= UI =================
 
 def main_menu():
