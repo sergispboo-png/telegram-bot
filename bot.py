@@ -39,11 +39,18 @@ from generator import generate_image_openrouter
 # ================= НАСТРОЙКИ =================
 
 TOKEN = os.getenv("BOT_TOKEN")
+PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
 CHANNEL_USERNAME = "YourDesignerSpb"
 ADMIN_ID = 373830941
 
+if not TOKEN:
+    raise ValueError("BOT_TOKEN not set!")
+
+if not PUBLIC_DOMAIN:
+    raise ValueError("RAILWAY_PUBLIC_DOMAIN not set!")
+
 WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
+WEBHOOK_URL = f"https://{PUBLIC_DOMAIN}{WEBHOOK_PATH}"
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -58,14 +65,9 @@ ERROR_LOG = []
 class Generate(StatesGroup):
     waiting_image = State()
     waiting_prompt = State()
-    editing = State()
 
 
-# ================= ВСПОМОГАТЕЛЬНОЕ =================
-
-def is_admin(user_id: int):
-    return user_id == ADMIN_ID
-
+# ================= ПРОВЕРКА ПОДПИСКИ =================
 
 async def check_subscription(user_id):
     try:
@@ -80,7 +82,10 @@ async def require_subscription(user_id, message):
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📢 Подписаться", url=f"https://t.me/{CHANNEL_USERNAME}")]
         ])
-        await message.answer("❗ Подпишитесь на канал для использования бота.", reply_markup=keyboard)
+        await message.answer(
+            "❗ Для использования бота необходимо подписаться на канал.",
+            reply_markup=keyboard
+        )
         return False
     return True
 
@@ -156,14 +161,13 @@ async def start(message: Message, state: FSMContext):
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
 
 @dp.callback_query(F.data == "profile")
-async def user_profile(callback: CallbackQuery):
+async def profile(callback: CallbackQuery):
     user_id = callback.from_user.id
     user = get_user(user_id)
     balance = user[0] if user else 0
 
     from database import conn
     cursor = conn.cursor()
-
     cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
     total_generations = cursor.fetchone()[0]
 
@@ -181,71 +185,6 @@ async def user_profile(callback: CallbackQuery):
         reply_markup=keyboard
     )
     await callback.answer()
-
-
-# ================= АДМИН КОМАНДЫ =================
-
-@dp.message(F.text == "/stats")
-async def admin_stats(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-
-    users = get_users_count()
-    generations = get_generations_count()
-    payments_count, payments_sum = get_payments_stats()
-
-    await message.answer(
-        f"📊 Статистика\n\n"
-        f"👥 Пользователей: {users}\n"
-        f"🎨 Генераций: {generations}\n"
-        f"💳 Платежей: {payments_count}\n"
-        f"💰 Доход: {payments_sum} ₽"
-    )
-
-
-@dp.message(F.text.startswith("/broadcast "))
-async def admin_broadcast(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-
-    text = message.text.replace("/broadcast ", "")
-    users = get_all_user_ids()
-
-    sent, failed = 0, 0
-
-    for user_id in users:
-        try:
-            await bot.send_message(user_id, text)
-            sent += 1
-        except:
-            failed += 1
-
-    await message.answer(f"Рассылка завершена\nОтправлено: {sent}\nОшибок: {failed}")
-
-
-@dp.message(F.text.startswith("/addbalance "))
-async def admin_add_balance(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-
-    try:
-        _, user_id, amount = message.text.split()
-        update_balance(int(user_id), int(amount))
-        await message.answer("Баланс обновлён.")
-    except:
-        await message.answer("Формат: /addbalance USER_ID СУММА")
-
-
-@dp.message(F.text == "/logs")
-async def admin_logs(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-
-    if not ERROR_LOG:
-        await message.answer("Ошибок нет.")
-        return
-
-    await message.answer("\n".join(ERROR_LOG[-10:]))
 
 
 # ================= ГЕНЕРАЦИЯ =================
@@ -289,3 +228,157 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
         await state.set_state(Generate.waiting_image)
 
     await callback.answer()
+
+
+@dp.message(Generate.waiting_image)
+async def receive_image(message: Message, state: FSMContext):
+    file_id = message.photo[-1].file_id
+    file = await bot.get_file(file_id)
+    downloaded = await bot.download_file(file.file_path)
+
+    image_bytes = downloaded.read()
+    image_base64 = base64.b64encode(image_bytes).decode()
+
+    await state.update_data(user_image=image_base64)
+    await message.answer("✍ Теперь напишите промпт:")
+    await state.set_state(Generate.waiting_prompt)
+
+
+@dp.message(Generate.waiting_prompt)
+async def process_prompt(message: Message, state: FSMContext):
+    if not await require_subscription(message.from_user.id, message):
+        return
+
+    user_id = message.from_user.id
+    balance, model, format_value = get_user(user_id)
+
+    COST = 10
+
+    if balance < COST:
+        await message.answer("❌ Недостаточно средств.")
+        return
+
+    status = await message.answer("🎨 Генерирую...")
+
+    try:
+        data = await state.get_data()
+        user_image = data.get("user_image")
+
+        result = await generate_image_openrouter(
+            prompt=message.text,
+            model=model,
+            format_value=format_value,
+            user_image=user_image
+        )
+
+        if "image_bytes" not in result:
+            await status.edit_text(f"❌ Ошибка генерации:\n{result}")
+            return
+
+        image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG", quality=90)
+
+        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+        await message.answer_photo(file)
+
+        deduct_balance(user_id, COST)
+        add_generation(user_id, model)
+
+        new_balance = get_user(user_id)[0]
+
+        await message.answer(
+            f"✅ Готово!\n💎 Баланс: {new_balance}",
+            reply_markup=after_generation_menu()
+        )
+
+        await state.clear()
+
+    except Exception as e:
+        ERROR_LOG.append(str(e))
+        await status.edit_text(f"❌ Ошибка генерации:\n{str(e)}")
+
+
+# ================= АДМИН =================
+
+@dp.message(F.text == "/stats")
+async def admin_stats(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    users = get_users_count()
+    generations = get_generations_count()
+    payments_count, payments_sum = get_payments_stats()
+
+    await message.answer(
+        f"📊 Статистика\n\n"
+        f"👥 Пользователей: {users}\n"
+        f"🎨 Генераций: {generations}\n"
+        f"💳 Платежей: {payments_count}\n"
+        f"💰 Доход: {payments_sum} ₽"
+    )
+
+
+@dp.message(F.text.startswith("/broadcast "))
+async def admin_broadcast(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    text = message.text.replace("/broadcast ", "")
+    users = get_all_user_ids()
+
+    sent = 0
+    for user_id in users:
+        try:
+            await bot.send_message(user_id, text)
+            sent += 1
+        except:
+            pass
+
+    await message.answer(f"Рассылка завершена. Отправлено: {sent}")
+
+
+@dp.message(F.text.startswith("/addbalance "))
+async def admin_add_balance(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        _, user_id, amount = message.text.split()
+        update_balance(int(user_id), int(amount))
+        await message.answer("Баланс обновлён.")
+    except:
+        await message.answer("Формат: /addbalance USER_ID СУММА")
+
+
+@dp.message(F.text == "/logs")
+async def admin_logs(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    if not ERROR_LOG:
+        await message.answer("Ошибок нет.")
+    else:
+        await message.answer("\n".join(ERROR_LOG[-10:]))
+
+
+# ================= WEBHOOK =================
+
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
+
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    await bot.session.close()
+
+
+app = web.Application()
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+setup_application(app, dp, bot=bot)
+
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
+
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
