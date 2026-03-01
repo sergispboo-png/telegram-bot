@@ -192,7 +192,7 @@ async def profile(callback: CallbackQuery):
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.message.answer("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
 
