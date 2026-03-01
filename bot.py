@@ -31,6 +31,8 @@ from database import (
 from generator import generate_image_openrouter
 
 
+# ================= CONFIG ================= #
+
 logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -40,13 +42,19 @@ WEBHOOK_URL = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}{WEBHOOK_PATH}"
 CHANNEL_USERNAME = "@YourDesignerSpb"
 CHANNEL_URL = "https://t.me/YourDesignerSpb"
 
-ADMINS = [373830941]  # ← ВСТАВЬ СВОЙ TELEGRAM ID
+ADMINS = [123456789]  # ← ВСТАВЬ СВОЙ TELEGRAM ID
+
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 
-# ================= SUBSCRIPTION CHECK ================= #
+# ================= HEALTH CHECK ================= #
+
+async def health(request):
+    return web.Response(text="Bot is running")
+
+# ================= SUBSCRIPTION ================= #
 
 async def check_subscription(user_id: int) -> bool:
     try:
@@ -56,12 +64,27 @@ async def check_subscription(user_id: int) -> bool:
         return False
 
 
+def subscribe_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 Подписаться", url=CHANNEL_URL)],
+        [InlineKeyboardButton(text="✅ Я подписался", callback_data="check_sub")]
+    ])
+
+
+async def require_subscription(user_id: int, message_obj):
+    if not await check_subscription(user_id):
+        await message_obj.answer(
+            "❗ Для использования бота необходимо подписаться на канал.",
+            reply_markup=subscribe_keyboard()
+        )
+        return False
+    return True
+
+
 # ================= FSM ================= #
 
 class Generate(StatesGroup):
-    waiting_image = State()
     waiting_prompt = State()
-    editing = State()
 
 
 # ================= UI ================= #
@@ -73,15 +96,6 @@ MODEL_NAMES = {
 }
 
 
-def breadcrumb_text(model=None, format_value=None):
-    lines = []
-    if model:
-        lines.append(f"🧠 Модель: {MODEL_NAMES.get(model, model)}")
-    if format_value:
-        lines.append(f"📐 Формат: {format_value}")
-    return "\n".join(lines)
-
-
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
@@ -91,10 +105,12 @@ def main_menu():
     ])
 
 
-def subscribe_keyboard():
+def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📢 Подписаться", url=CHANNEL_URL)],
-        [InlineKeyboardButton(text="✅ Я подписался", callback_data="check_sub")]
+        [InlineKeyboardButton(text="Nano Banana", callback_data="model_nano")],
+        [InlineKeyboardButton(text="Nano Banana Pro", callback_data="model_pro")],
+        [InlineKeyboardButton(text="SeeDream", callback_data="model_seedream")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
     ])
 
 
@@ -104,21 +120,17 @@ def subscribe_keyboard():
 async def start(message: Message, state: FSMContext):
     await state.clear()
 
-    if not await check_subscription(message.from_user.id):
-        await message.answer(
-            "❗ Для использования бота необходимо подписаться на канал.",
-            reply_markup=subscribe_keyboard()
-        )
+    if not await require_subscription(message.from_user.id, message):
         return
 
     add_user(message.from_user.id)
     await message.answer("🏠 Главное меню", reply_markup=main_menu())
 
 
-# ================= SUB CHECK BUTTON ================= #
+# ================= SUB CONFIRM ================= #
 
 @dp.callback_query(F.data == "check_sub")
-async def check_sub_callback(callback: CallbackQuery, state: FSMContext):
+async def confirm_sub(callback: CallbackQuery, state: FSMContext):
     if await check_subscription(callback.from_user.id):
         add_user(callback.from_user.id)
         await callback.message.edit_text("✅ Подписка подтверждена!")
@@ -127,26 +139,10 @@ async def check_sub_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Вы ещё не подписались", show_alert=True)
 
 
-# ================= GLOBAL CALLBACK GUARD ================= #
-
-@dp.callback_query()
-async def subscription_guard(callback: CallbackQuery):
-    if callback.data == "check_sub":
-        return
-
-    if not await check_subscription(callback.from_user.id):
-        await callback.message.answer(
-            "❗ Для работы с ботом нужно подписаться на канал.",
-            reply_markup=subscribe_keyboard()
-        )
-        await callback.answer()
-        return
-
-
 # ================= STATS ================= #
 
 @dp.message(F.text == "/stats")
-async def stats_handler(message: Message):
+async def stats(message: Message):
     if message.from_user.id not in ADMINS:
         return
 
@@ -154,23 +150,32 @@ async def stats_handler(message: Message):
     await message.answer(f"👥 Всего пользователей: {count}")
 
 
-# ================= GENERATION ================= #
+# ================= NAVIGATION ================= #
+
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery, state: FSMContext):
+    if not await require_subscription(callback.from_user.id, callback.message):
+        return
+
+    await state.clear()
+    await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+    await callback.answer()
+
 
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "🧠 Выберите модель:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Nano Banana", callback_data="model_nano")],
-            [InlineKeyboardButton(text="Nano Banana Pro", callback_data="model_pro")],
-            [InlineKeyboardButton(text="SeeDream", callback_data="model_seedream")],
-        ])
-    )
+    if not await require_subscription(callback.from_user.id, callback.message):
+        return
+
+    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("model_"))
-async def choose_mode(callback: CallbackQuery, state: FSMContext):
+async def choose_model_confirm(callback: CallbackQuery, state: FSMContext):
+    if not await require_subscription(callback.from_user.id, callback.message):
+        return
+
     model_key = callback.data.split("_")[1]
 
     model_map = {
@@ -180,18 +185,18 @@ async def choose_mode(callback: CallbackQuery, state: FSMContext):
     }
 
     update_model(callback.from_user.id, model_map.get(model_key))
-    await state.update_data(selected_model=model_key)
 
     await callback.message.edit_text("✍ Напишите промпт:")
     await state.set_state(Generate.waiting_prompt)
     await callback.answer()
 
 
+# ================= GENERATION ================= #
+
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
-    if not await check_subscription(message.from_user.id):
-        await message.answer("❗ Подпишитесь на канал для использования бота.")
+    if not await require_subscription(message.from_user.id, message):
         return
 
     user = get_user(message.from_user.id)
@@ -264,6 +269,8 @@ async def on_shutdown(app):
 
 
 app = web.Application()
+app.router.add_get("/", health)
+
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
