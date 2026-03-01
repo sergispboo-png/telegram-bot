@@ -58,16 +58,17 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 ERROR_LOG = []
+# ================= ЦЕНА =================
 
+GENERATION_PRICE = 10
 
 # ================= ЦЕНЫ МОДЕЛЕЙ =================
 
 MODEL_PRICES = {
-    "google/gemini-2.5-flash-image": 10,
-    "pro_model": 15,
-    "seedream_model": 20
+    "google/gemini-2.5-flash-image": GENERATION_PRICE,
+    "pro_model": GENERATION_PRICE,
+    "seedream_model": GENERATION_PRICE,
 }
-
 
 # ================= MIDDLEWARE БАЛАНСА =================
 
@@ -87,6 +88,13 @@ class BalanceMiddleware(BaseMiddleware):
         if not isinstance(event, Message):
             return await handler(event, data)
 
+        # Проверяем только когда пользователь вводит промпт
+        state = data.get("state")
+        if state:
+            current_state = await state.get_state()
+            if current_state != Generate.waiting_prompt.state:
+                return await handler(event, data)
+
         user_id = event.from_user.id
         user = get_user(user_id)
 
@@ -95,14 +103,20 @@ class BalanceMiddleware(BaseMiddleware):
             user = get_user(user_id)
 
         balance, model, format_value = user
-
         price = MODEL_PRICES.get(model, 10)
 
         if balance < price:
+
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
+                [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+            ])
+
             await event.answer(
                 f"❌ Недостаточно средств.\n\n"
                 f"Стоимость генерации: {price}₽\n"
-                f"Ваш баланс: {balance}₽"
+                f"Ваш баланс: {balance}₽",
+                reply_markup=keyboard
             )
             return
 
@@ -158,9 +172,9 @@ def main_menu():
 
 def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Nano Banana", callback_data="model_nano")],
-        [InlineKeyboardButton(text="Nano Banana Pro", callback_data="model_pro")],
-        [InlineKeyboardButton(text="SeeDream", callback_data="model_seedream")],
+        [InlineKeyboardButton(text=f"Nano Banana — {GENERATION_PRICE}₽", callback_data="model_nano")],
+        [InlineKeyboardButton(text=f"Nano Banana Pro — {GENERATION_PRICE}₽", callback_data="model_pro")],
+        [InlineKeyboardButton(text=f"SeeDream — {GENERATION_PRICE}₽", callback_data="model_seedream")],
         [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
     ])
 
@@ -333,7 +347,9 @@ async def process_prompt(message: Message, state: FSMContext, generation_price: 
 
     balance, model, format_value = user
 
-    status = await message.answer("🎨 Генерирую...")
+    status = await message.answer(
+    f"🎨 Генерирую...\n💰 Стоимость: {GENERATION_PRICE}₽"
+)
 
     try:
         data = await state.get_data()
@@ -347,8 +363,13 @@ async def process_prompt(message: Message, state: FSMContext, generation_price: 
         )
 
         if "image_bytes" not in result:
-            await status.edit_text(f"❌ Ошибка генерации:\n{result}")
-            return
+    ERROR_LOG.append(str(result))
+
+    await status.edit_text(
+        "❌ Ошибка генерации.",
+        reply_markup=after_generation_menu()
+    )
+    return
 
         image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
         buffer = BytesIO()
@@ -369,9 +390,13 @@ async def process_prompt(message: Message, state: FSMContext, generation_price: 
 
         await state.clear()
 
-    except Exception as e:
-        ERROR_LOG.append(str(e))
-        await status.edit_text(f"❌ Ошибка генерации:\n{str(e)}")
+   except Exception as e:
+    ERROR_LOG.append(str(e))
+
+    await status.edit_text(
+        "❌ Ошибка генерации.",
+        reply_markup=after_generation_menu()
+    )
 
 
 # ================= АДМИН =================
