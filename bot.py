@@ -13,7 +13,7 @@ from aiogram.types import (
     CallbackQuery,
     BufferedInputFile,
 )
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -121,26 +121,12 @@ async def start(message: Message, state: FSMContext):
 
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
-        "Премиальная AI-генерация изображений.\n\n"
+        "Премиальная AI-генерация изображений\n"
+        "🎨 Стоимость генерации — 10₽\n\n"
         "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
     )
-
-
-# ================= О СЕРВИСЕ =================
-
-@dp.callback_query(F.data == "about")
-async def about(callback: CallbackQuery):
-    await callback.message.answer(
-        "ℹ️ <b>О сервисе LuxRender</b>\n\n"
-        "Стоимость генерации — 10₽",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-        ])
-    )
-    await callback.answer()
 
 
 # ================= НАВИГАЦИЯ =================
@@ -148,9 +134,26 @@ async def about(callback: CallbackQuery):
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer(
-        "🏠 Главное меню",
+    await callback.message.edit_text(
+        "🏠 <b>Главное меню</b>",
+        parse_mode="HTML",
         reply_markup=main_menu()
+    )
+    await callback.answer()
+
+
+# ================= О СЕРВИСЕ =================
+
+@dp.callback_query(F.data == "about")
+async def about(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "ℹ️ <b>О сервисе LuxRender</b>\n\n"
+        "AI генерация изображений.\n"
+        "Стоимость — 10₽ за изображение.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+        ])
     )
     await callback.answer()
 
@@ -167,7 +170,7 @@ async def profile(callback: CallbackQuery):
     cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
     total_generations = cursor.fetchone()[0]
 
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"👤 <b>Личный кабинет</b>\n\n"
         f"🆔 ID: <code>{user_id}</code>\n"
         f"💰 Баланс: <b>{balance}₽</b>\n"
@@ -186,14 +189,14 @@ async def profile(callback: CallbackQuery):
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("model_"))
 async def choose_mode(callback: CallbackQuery):
     update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
-    await callback.message.answer("⚙ Выберите режим:", reply_markup=mode_menu())
+    await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
     await callback.answer()
 
 
@@ -201,7 +204,7 @@ async def choose_mode(callback: CallbackQuery):
 async def choose_format(callback: CallbackQuery, state: FSMContext):
     mode = callback.data.split("_")[1]
     await state.update_data(mode=mode)
-    await callback.message.answer("📐 Выберите формат:", reply_markup=format_menu())
+    await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
     await callback.answer()
 
 
@@ -214,20 +217,19 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
     mode = data.get("mode")
 
     if mode == "text":
-        await callback.message.answer("✍ Напишите промпт:")
+        await callback.message.edit_text("✍ Напишите промпт:")
         await state.set_state(Generate.waiting_prompt)
     else:
-        await callback.message.answer("🖼 Отправьте изображение:")
+        await callback.message.edit_text("🖼 Отправьте изображение:")
         await state.set_state(Generate.waiting_image)
 
     await callback.answer()
 
 
-# ---------- ПОЛУЧЕНИЕ ФОТО ----------
+# ================= ПОЛУЧЕНИЕ ФОТО =================
 
 @dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
-
     file_id = message.photo[-1].file_id
     file = await bot.get_file(file_id)
     downloaded = await bot.download_file(file.file_path)
@@ -236,12 +238,11 @@ async def receive_image(message: Message, state: FSMContext):
     image_base64 = base64.b64encode(image_bytes).decode()
 
     await state.update_data(user_image=image_base64)
-
     await message.answer("✍ Теперь напишите промпт:")
     await state.set_state(Generate.waiting_prompt)
 
 
-# ---------- ПРОМПТ ----------
+# ================= ПРОМПТ =================
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
@@ -250,10 +251,7 @@ async def process_prompt(message: Message, state: FSMContext):
     balance, model, format_value = get_user(user_id)
 
     if balance < GENERATION_PRICE:
-        await message.answer(
-            f"❌ Недостаточно средств.\nБаланс: {balance}₽",
-            reply_markup=main_menu()
-        )
+        await message.answer("❌ Недостаточно средств.", reply_markup=main_menu())
         return
 
     status = await message.answer("🎨 Генерирую...")
@@ -274,7 +272,7 @@ async def process_prompt(message: Message, state: FSMContext):
 
     image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
     buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=90)
+    image.save(buffer, format="JPEG")
 
     file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
     await message.answer_photo(file)
@@ -290,6 +288,56 @@ async def process_prompt(message: Message, state: FSMContext):
     )
 
     await state.clear()
+
+
+# ================= АДМИН КОМАНДЫ =================
+
+@dp.message(Command("stats"))
+async def admin_stats(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    users = get_users_count()
+    generations = get_generations_count()
+    payments_count, payments_sum = get_payments_stats()
+
+    await message.answer(
+        f"📊 Статистика\n\n"
+        f"👥 Пользователей: {users}\n"
+        f"🎨 Генераций: {generations}\n"
+        f"💳 Платежей: {payments_count}\n"
+        f"💰 Доход: {payments_sum}₽"
+    )
+
+
+@dp.message(Command("addbalance"))
+async def admin_add_balance(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        _, user_id, amount = message.text.split()
+        update_balance(int(user_id), int(amount))
+        await message.answer("Баланс обновлён.")
+    except:
+        await message.answer("Формат: /addbalance USER_ID СУММА")
+
+
+@dp.message(Command("broadcast"))
+async def admin_broadcast(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    text = message.text.replace("/broadcast ", "")
+    users = get_all_user_ids()
+
+    for user_id in users:
+        try:
+            await bot.send_message(user_id, text)
+        except:
+            pass
+
+    await message.answer("Рассылка завершена.")
 
 
 # ================= WEBHOOK =================
