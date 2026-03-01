@@ -92,7 +92,7 @@ class BalanceMiddleware(BaseMiddleware):
         state = data.get("state")
         if state:
             current_state = await state.get_state()
-            if current_state != Generate.waiting_prompt.state:
+            if current_state != "Generate:waiting_prompt":
                 return await handler(event, data)
 
         user_id = event.from_user.id
@@ -106,7 +106,6 @@ class BalanceMiddleware(BaseMiddleware):
         price = MODEL_PRICES.get(model, GENERATION_PRICE)
 
         if balance < price:
-
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
                 [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
@@ -120,9 +119,7 @@ class BalanceMiddleware(BaseMiddleware):
             )
             return
 
-        data["generation_price"] = price
         return await handler(event, data)
-
 
 
 
