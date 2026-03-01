@@ -43,12 +43,6 @@ PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
 CHANNEL_USERNAME = "YourDesignerSpb"
 ADMIN_ID = 373830941
 
-if not TOKEN:
-    raise ValueError("BOT_TOKEN not set!")
-
-if not PUBLIC_DOMAIN:
-    raise ValueError("RAILWAY_PUBLIC_DOMAIN not set!")
-
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"https://{PUBLIC_DOMAIN}{WEBHOOK_PATH}"
 
@@ -137,24 +131,33 @@ async def start(message: Message, state: FSMContext):
     )
 
 
+# ================= О СЕРВИСЕ =================
+
+@dp.callback_query(F.data == "about")
+async def about(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "ℹ️ <b>О сервисе LuxRender</b>\n\n"
+        "AI генерация изображений.\n"
+        "Стоимость одной генерации — 10₽.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+        ])
+    )
+    await callback.answer()
+
+
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
 
 @dp.callback_query(F.data == "profile")
 async def profile(callback: CallbackQuery):
     user_id = callback.from_user.id
-    user = get_user(user_id)
-
-    balance = user[0]
+    balance = get_user(user_id)[0]
 
     from database import conn
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
     total_generations = cursor.fetchone()[0]
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-    ])
 
     await callback.message.edit_text(
         f"👤 <b>Личный кабинет</b>\n\n"
@@ -162,7 +165,22 @@ async def profile(callback: CallbackQuery):
         f"💰 Баланс: <b>{balance}₽</b>\n"
         f"🎨 Генераций: <b>{total_generations}</b>",
         parse_mode="HTML",
-        reply_markup=keyboard
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+        ])
+    )
+    await callback.answer()
+
+
+# ================= НАВИГАЦИЯ =================
+
+@dp.callback_query(F.data == "back_main")
+async def back_main(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text(
+        "🏠 Главное меню",
+        reply_markup=main_menu()
     )
     await callback.answer()
 
@@ -258,6 +276,26 @@ async def process_prompt(message: Message, state: FSMContext):
 
     except:
         await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
+
+
+# ================= АДМИН =================
+
+@dp.message(F.text == "/stats")
+async def admin_stats(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    users = get_users_count()
+    generations = get_generations_count()
+    payments_count, payments_sum = get_payments_stats()
+
+    await message.answer(
+        f"📊 Статистика\n\n"
+        f"👥 Пользователей: {users}\n"
+        f"🎨 Генераций: {generations}\n"
+        f"💳 Платежей: {payments_count}\n"
+        f"💰 Доход: {payments_sum}₽"
+    )
 
 
 # ================= WEBHOOK =================
