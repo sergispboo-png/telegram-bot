@@ -144,7 +144,6 @@ async def start(message: Message, state: FSMContext):
 
     await message.answer(
         f"✨ <b>LuxRender</b>\n\n"
-        f"👥 Уже <b>{users_count}</b> пользователей\n\n"
         "Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
