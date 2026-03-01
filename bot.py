@@ -60,6 +60,60 @@ dp = Dispatcher(storage=MemoryStorage())
 ERROR_LOG = []
 
 
+# ================= ЦЕНЫ МОДЕЛЕЙ =================
+
+MODEL_PRICES = {
+    "google/gemini-2.5-flash-image": 10,
+    "pro_model": 15,
+    "seedream_model": 20
+}
+
+
+# ================= MIDDLEWARE БАЛАНСА =================
+
+from aiogram import BaseMiddleware
+from typing import Callable, Awaitable, Dict, Any
+
+
+class BalanceMiddleware(BaseMiddleware):
+
+    async def __call__(
+        self,
+        handler: Callable,
+        event,
+        data: Dict[str, Any]
+    ):
+
+        if not isinstance(event, Message):
+            return await handler(event, data)
+
+        user_id = event.from_user.id
+        user = get_user(user_id)
+
+        if not user:
+            add_user(user_id)
+            user = get_user(user_id)
+
+        balance, model, format_value = user
+
+        price = MODEL_PRICES.get(model, 10)
+
+        if balance < price:
+            await event.answer(
+                f"❌ Недостаточно средств.\n\n"
+                f"Стоимость генерации: {price}₽\n"
+                f"Ваш баланс: {balance}₽"
+            )
+            return
+
+        data["generation_price"] = price
+
+        return await handler(event, data)
+
+
+dp.message.middleware(BalanceMiddleware())
+
+
 # ================= FSM =================
 
 class Generate(StatesGroup):
@@ -266,7 +320,7 @@ async def receive_image(message: Message, state: FSMContext):
 
 
 @dp.message(Generate.waiting_prompt)
-async def process_prompt(message: Message, state: FSMContext):
+async def process_prompt(message: Message, state: FSMContext, generation_price: int):
     if not await require_subscription(message.from_user.id, message):
         return
 
@@ -278,11 +332,6 @@ async def process_prompt(message: Message, state: FSMContext):
         user = get_user(user_id)
 
     balance, model, format_value = user
-    COST = 10
-
-    if balance < COST:
-        await message.answer("❌ Недостаточно средств.")
-        return
 
     status = await message.answer("🎨 Генерирую...")
 
@@ -308,7 +357,7 @@ async def process_prompt(message: Message, state: FSMContext):
         file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
         await message.answer_photo(file)
 
-        deduct_balance(user_id, COST)
+        deduct_balance(user_id, generation_price)
         add_generation(user_id, model)
 
         new_balance = get_user(user_id)[0]
