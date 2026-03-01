@@ -137,13 +137,11 @@ async def start(message: Message, state: FSMContext):
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-
-    await callback.message.answer(
+    await callback.message.edit_text(
         "🏠 <b>Главное меню</b>",
         parse_mode="HTML",
         reply_markup=main_menu()
     )
-
     await callback.answer()
 
 
@@ -192,7 +190,7 @@ async def profile(callback: CallbackQuery):
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
 
