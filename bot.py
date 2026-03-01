@@ -58,6 +58,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 ERROR_LOG = []
+
 # ================= ЦЕНА =================
 
 GENERATION_PRICE = 10
@@ -73,7 +74,7 @@ MODEL_PRICES = {
 # ================= MIDDLEWARE БАЛАНСА =================
 
 from aiogram import BaseMiddleware
-from typing import Callable, Awaitable, Dict, Any
+from typing import Callable, Dict, Any
 
 
 class BalanceMiddleware(BaseMiddleware):
@@ -88,7 +89,6 @@ class BalanceMiddleware(BaseMiddleware):
         if not isinstance(event, Message):
             return await handler(event, data)
 
-        # Проверяем только когда пользователь вводит промпт
         state = data.get("state")
         if state:
             current_state = await state.get_state()
@@ -103,7 +103,7 @@ class BalanceMiddleware(BaseMiddleware):
             user = get_user(user_id)
 
         balance, model, format_value = user
-        price = MODEL_PRICES.get(model, 10)
+        price = MODEL_PRICES.get(model, GENERATION_PRICE)
 
         if balance < price:
 
@@ -121,7 +121,6 @@ class BalanceMiddleware(BaseMiddleware):
             return
 
         data["generation_price"] = price
-
         return await handler(event, data)
 
 
@@ -227,111 +226,7 @@ async def start(message: Message, state: FSMContext):
     )
 
 
-# ================= НАВИГАЦИЯ =================
-
-@dp.callback_query(F.data == "back_main")
-async def back_main(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text(
-        "🏠 Главное меню",
-        reply_markup=main_menu()
-    )
-    await callback.answer()
-
-
-# ================= ЛИЧНЫЙ КАБИНЕТ =================
-
-@dp.callback_query(F.data == "profile")
-async def profile(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    user = get_user(user_id)
-
-    if not user:
-        add_user(user_id)
-        user = get_user(user_id)
-
-    balance = user[0]
-
-    from database import conn
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
-    total_generations = cursor.fetchone()[0]
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-    ])
-
-    await callback.message.edit_text(
-        f"👤 <b>Личный кабинет</b>\n\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
-        f"💰 Баланс: <b>{balance}</b>\n"
-        f"🎨 Всего генераций: <b>{total_generations}</b>",
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
-    await callback.answer()
-
-
-# ================= ГЕНЕРАЦИЯ =================
-
-@dp.callback_query(F.data == "generate")
-async def choose_model(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-
-    if not await require_subscription(callback.from_user.id, callback.message):
-        return
-
-    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
-    await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("model_"))
-async def choose_mode(callback: CallbackQuery):
-    update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
-    await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
-    await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("mode_"))
-async def choose_format(callback: CallbackQuery, state: FSMContext):
-    mode = callback.data.split("_")[1]
-    await state.update_data(mode=mode)
-    await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
-    await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("format_"))
-async def after_format(callback: CallbackQuery, state: FSMContext):
-    format_value = callback.data.replace("format_", "").replace("_", ":")
-    update_format(callback.from_user.id, format_value)
-
-    data = await state.get_data()
-    mode = data.get("mode")
-
-    if mode == "text":
-        await callback.message.edit_text("✍ Напишите промпт:")
-        await state.set_state(Generate.waiting_prompt)
-    else:
-        await callback.message.edit_text("🖼 Отправьте изображение:")
-        await state.set_state(Generate.waiting_image)
-
-    await callback.answer()
-
-
-@dp.message(Generate.waiting_image)
-async def receive_image(message: Message, state: FSMContext):
-    file_id = message.photo[-1].file_id
-    file = await bot.get_file(file_id)
-    downloaded = await bot.download_file(file.file_path)
-
-    image_bytes = downloaded.read()
-    image_base64 = base64.b64encode(image_bytes).decode()
-
-    await state.update_data(user_image=image_base64)
-    await message.answer("✍ Теперь напишите промпт:")
-    await state.set_state(Generate.waiting_prompt)
-
+# ================= ГЕНЕРАЦИЯ (ИСПРАВЛЕННЫЕ ОТСТУПЫ) =================
 
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext, generation_price: int):
@@ -348,8 +243,8 @@ async def process_prompt(message: Message, state: FSMContext, generation_price: 
     balance, model, format_value = user
 
     status = await message.answer(
-    f"🎨 Генерирую...\n💰 Стоимость: {GENERATION_PRICE}₽"
-)
+        f"🎨 Генерирую...\n💰 Стоимость: {GENERATION_PRICE}₽"
+    )
 
     try:
         data = await state.get_data()
@@ -363,13 +258,13 @@ async def process_prompt(message: Message, state: FSMContext, generation_price: 
         )
 
         if "image_bytes" not in result:
-    ERROR_LOG.append(str(result))
+            ERROR_LOG.append(str(result))
 
-    await status.edit_text(
-        "❌ Ошибка генерации.",
-        reply_markup=after_generation_menu()
-    )
-    return
+            await status.edit_text(
+                "❌ Ошибка генерации.",
+                reply_markup=after_generation_menu()
+            )
+            return
 
         image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
         buffer = BytesIO()
@@ -390,95 +285,10 @@ async def process_prompt(message: Message, state: FSMContext, generation_price: 
 
         await state.clear()
 
-   except Exception as e:
-    ERROR_LOG.append(str(e))
+    except Exception as e:
+        ERROR_LOG.append(str(e))
 
-    await status.edit_text(
-        "❌ Ошибка генерации.",
-        reply_markup=after_generation_menu()
-    )
-
-
-# ================= АДМИН =================
-
-@dp.message(F.text == "/stats")
-async def admin_stats(message: Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    users = get_users_count()
-    generations = get_generations_count()
-    payments_count, payments_sum = get_payments_stats()
-
-    await message.answer(
-        f"📊 Статистика\n\n"
-        f"👥 Пользователей: {users}\n"
-        f"🎨 Генераций: {generations}\n"
-        f"💳 Платежей: {payments_count}\n"
-        f"💰 Доход: {payments_sum} ₽"
-    )
-
-
-@dp.message(F.text.startswith("/broadcast "))
-async def admin_broadcast(message: Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    text = message.text.replace("/broadcast ", "")
-    users = get_all_user_ids()
-
-    sent = 0
-    for user_id in users:
-        try:
-            await bot.send_message(user_id, text)
-            sent += 1
-        except:
-            pass
-
-    await message.answer(f"Рассылка завершена. Отправлено: {sent}")
-
-
-@dp.message(F.text.startswith("/addbalance "))
-async def admin_add_balance(message: Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    try:
-        _, user_id, amount = message.text.split()
-        update_balance(int(user_id), int(amount))
-        await message.answer("Баланс обновлён.")
-    except:
-        await message.answer("Формат: /addbalance USER_ID СУММА")
-
-
-@dp.message(F.text == "/logs")
-async def admin_logs(message: Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    if not ERROR_LOG:
-        await message.answer("Ошибок нет.")
-    else:
-        await message.answer("\n".join(ERROR_LOG[-10:]))
-
-
-# ================= WEBHOOK =================
-
-async def on_startup(app):
-    await bot.set_webhook(WEBHOOK_URL)
-
-
-async def on_shutdown(app):
-    await bot.delete_webhook()
-    await bot.session.close()
-
-
-app = web.Application()
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-setup_application(app, dp, bot=bot)
-
-app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
-
-if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+        await status.edit_text(
+            "❌ Ошибка генерации.",
+            reply_markup=after_generation_menu()
+        )
