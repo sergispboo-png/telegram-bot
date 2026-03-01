@@ -1,142 +1,150 @@
 import sqlite3
-from datetime import datetime
 
+conn = sqlite3.connect("database.db", check_same_thread=False)
+cursor = conn.cursor()
 
-DB_NAME = "database.db"
+# ================= USERS ================= #
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    balance INTEGER DEFAULT 0,
+    model TEXT DEFAULT 'google/gemini-2.5-flash-image',
+    format TEXT DEFAULT '1:1'
+)
+""")
 
-def get_connection():
-    return sqlite3.connect(DB_NAME)
+# ================= PAYMENTS ================= #
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    amount INTEGER,
+    status TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
 
-# ================= INIT DATABASE ================= #
+# ================= GENERATIONS ================= #
 
-def init_db():
-    conn = get_connection()
-    cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS generations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    model TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        balance INTEGER DEFAULT 0,
-        model TEXT DEFAULT 'google/gemini-2.5-flash-image',
-        format TEXT DEFAULT '1:1',
-        created_at TEXT
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-init_db()
-
+conn.commit()
 
 # ================= USER FUNCTIONS ================= #
 
 def add_user(user_id: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-
     cursor.execute(
-        """
-        INSERT OR IGNORE INTO users 
-        (user_id, balance, created_at) 
-        VALUES (?, ?, ?)
-        """,
-        (user_id, 50, datetime.utcnow().isoformat())  # 50 тестовых кредитов
+        "INSERT OR IGNORE INTO users (user_id, balance) VALUES (?, ?)",
+        (user_id, 50)
     )
-
     conn.commit()
-    conn.close()
 
 
 def get_user(user_id: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-
     cursor.execute(
         "SELECT balance, model, format FROM users WHERE user_id = ?",
         (user_id,)
     )
+    return cursor.fetchone()
 
-    user = cursor.fetchone()
-    conn.close()
-    return user
-
-
-def get_users_count():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT COUNT(*) FROM users")
-    count = cursor.fetchone()[0]
-
-    conn.close()
-    return count
-
-
-# ================= UPDATE SETTINGS ================= #
 
 def update_model(user_id: int, model: str):
-    conn = get_connection()
-    cursor = conn.cursor()
-
     cursor.execute(
         "UPDATE users SET model = ? WHERE user_id = ?",
         (model, user_id)
     )
-
     conn.commit()
-    conn.close()
 
 
 def update_format(user_id: int, format_value: str):
-    conn = get_connection()
-    cursor = conn.cursor()
-
     cursor.execute(
         "UPDATE users SET format = ? WHERE user_id = ?",
         (format_value, user_id)
     )
-
     conn.commit()
-    conn.close()
 
-
-# ================= BALANCE ================= #
 
 def update_balance(user_id: int, amount: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-
     cursor.execute(
         "UPDATE users SET balance = balance + ? WHERE user_id = ?",
         (amount, user_id)
     )
-
     conn.commit()
-    conn.close()
+
+
+def set_balance(user_id: int, amount: int):
+    cursor.execute(
+        "UPDATE users SET balance = ? WHERE user_id = ?",
+        (amount, user_id)
+    )
+    conn.commit()
 
 
 def deduct_balance(user_id: int, amount: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # защита от отрицательного баланса
     cursor.execute(
-        "SELECT balance FROM users WHERE user_id = ?",
-        (user_id,)
+        "UPDATE users SET balance = balance - ? WHERE user_id = ?",
+        (amount, user_id)
     )
-    result = cursor.fetchone()
+    conn.commit()
 
-    if result:
-        current_balance = result[0]
-        if current_balance >= amount:
-            cursor.execute(
-                "UPDATE users SET balance = balance - ? WHERE user_id = ?",
-                (amount, user_id)
-            )
-            conn.commit()
 
-    conn.close()
+def get_users_count():
+    cursor.execute("SELECT COUNT(*) FROM users")
+    return cursor.fetchone()[0]
+
+
+def get_all_user_ids():
+    cursor.execute("SELECT user_id FROM users")
+    return [row[0] for row in cursor.fetchall()]
+
+
+# ================= PAYMENTS FUNCTIONS ================= #
+
+def add_payment(user_id: int, amount: int, status: str):
+    cursor.execute(
+        "INSERT INTO payments (user_id, amount, status) VALUES (?, ?, ?)",
+        (user_id, amount, status)
+    )
+    conn.commit()
+
+
+def get_payments_stats():
+    cursor.execute(
+        "SELECT COUNT(*), COALESCE(SUM(amount),0) FROM payments WHERE status='success'"
+    )
+    return cursor.fetchone()
+
+
+# ================= GENERATION FUNCTIONS ================= #
+
+def add_generation(user_id: int, model: str):
+    cursor.execute(
+        "INSERT INTO generations (user_id, model) VALUES (?, ?)",
+        (user_id, model)
+    )
+    conn.commit()
+
+
+def get_generations_count():
+    cursor.execute("SELECT COUNT(*) FROM generations")
+    return cursor.fetchone()[0]
+
+
+def get_top_users(limit=5):
+    cursor.execute("""
+        SELECT user_id, COUNT(*) as gen_count
+        FROM generations
+        GROUP BY user_id
+        ORDER BY gen_count DESC
+        LIMIT ?
+    """, (limit,))
+    return cursor.fetchall()
