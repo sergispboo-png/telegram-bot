@@ -25,15 +25,11 @@ from database import (
     update_model,
     update_format,
     deduct_balance,
-    update_balance,
-    get_users_count,
-    get_generations_count,
-    get_payments_stats,
-    get_all_user_ids,
     add_generation,
 )
 
 from generator import generate_image_openrouter
+
 
 # ================= НАСТРОЙКИ =================
 
@@ -51,6 +47,7 @@ dp = Dispatcher(storage=MemoryStorage())
 
 ERROR_LOG = []
 
+
 # ================= FSM =================
 
 class Generate(StatesGroup):
@@ -58,10 +55,8 @@ class Generate(StatesGroup):
     waiting_prompt = State()
     editing = State()
 
-# ================= ВСПОМОГАТЕЛЬНОЕ =================
 
-def is_admin(user_id: int):
-    return user_id == ADMIN_ID
+# ================= ВСПОМОГАТЕЛЬНОЕ =================
 
 async def check_subscription(user_id):
     try:
@@ -69,6 +64,7 @@ async def check_subscription(user_id):
         return member.status in ["member", "administrator", "creator"]
     except:
         return False
+
 
 async def require_subscription(user_id, message):
     if not await check_subscription(user_id):
@@ -78,6 +74,7 @@ async def require_subscription(user_id, message):
         await message.answer("❗ Подпишитесь на канал для использования бота.", reply_markup=keyboard)
         return False
     return True
+
 
 # ================= UI =================
 
@@ -89,6 +86,7 @@ def main_menu():
         [InlineKeyboardButton(text="📢 TG канал", url=f"https://t.me/{CHANNEL_USERNAME}")],
     ])
 
+
 def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Nano Banana", callback_data="model_nano")],
@@ -97,6 +95,7 @@ def model_menu():
         [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
     ])
 
+
 def mode_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📝 Только текст", callback_data="mode_text")],
@@ -104,23 +103,26 @@ def mode_menu():
         [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
     ])
 
+
 def format_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="1:1", callback_data="format_1:1"),
-            InlineKeyboardButton(text="16:9", callback_data="format_16:9"),
+            InlineKeyboardButton(text="1:1", callback_data="format_1_1"),
+            InlineKeyboardButton(text="16:9", callback_data="format_16_9"),
         ],
         [
-            InlineKeyboardButton(text="9:16", callback_data="format_9:16"),
+            InlineKeyboardButton(text="9:16", callback_data="format_9_16"),
         ],
         [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
     ])
 
+
 def after_generation_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔁 Повторить", callback_data="edit_start")],
+        [InlineKeyboardButton(text="🔁 Повторить", callback_data="generate")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
     ])
+
 
 # ================= START =================
 
@@ -136,6 +138,7 @@ async def start(message: Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=main_menu()
     )
+
 
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
 
@@ -165,6 +168,7 @@ async def user_profile(callback: CallbackQuery):
     )
     await callback.answer()
 
+
 # ================= НАВИГАЦИЯ =================
 
 @dp.callback_query(F.data == "back_main")
@@ -173,6 +177,7 @@ async def back_main(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
     await callback.answer()
 
+
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery):
     if not await require_subscription(callback.from_user.id, callback.message):
@@ -180,12 +185,13 @@ async def choose_model(callback: CallbackQuery):
     await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
 
+
 @dp.callback_query(F.data.startswith("model_"))
 async def choose_mode(callback: CallbackQuery, state: FSMContext):
     update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
-    await state.update_data(selected_model="google/gemini-2.5-flash-image")
     await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
     await callback.answer()
+
 
 @dp.callback_query(F.data.startswith("mode_"))
 async def choose_format(callback: CallbackQuery, state: FSMContext):
@@ -194,9 +200,10 @@ async def choose_format(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
     await callback.answer()
 
+
 @dp.callback_query(F.data.startswith("format_"))
 async def after_format(callback: CallbackQuery, state: FSMContext):
-    format_value = callback.data.split("_")[1]
+    format_value = callback.data.replace("format_", "").replace("_", ":")
     update_format(callback.from_user.id, format_value)
 
     data = await state.get_data()
@@ -210,6 +217,7 @@ async def after_format(callback: CallbackQuery, state: FSMContext):
         await state.set_state(Generate.waiting_image)
 
     await callback.answer()
+
 
 # ================= ПОЛУЧЕНИЕ ФОТО =================
 
@@ -225,6 +233,7 @@ async def receive_image(message: Message, state: FSMContext):
     await state.update_data(user_image=image_base64)
     await message.answer("✍ Теперь напишите промпт:")
     await state.set_state(Generate.waiting_prompt)
+
 
 # ================= ГЕНЕРАЦИЯ =================
 
@@ -255,9 +264,9 @@ async def process_prompt(message: Message, state: FSMContext):
             user_image=user_image
         )
 
-       if "image_bytes" not in result:
-    await status.edit_text(f"❌ Ошибка генерации:\n{result}")
-    return
+        if "image_bytes" not in result:
+            await status.edit_text(f"❌ Ошибка генерации:\n{result}")
+            return
 
         image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
         buffer = BytesIO()
@@ -280,7 +289,8 @@ async def process_prompt(message: Message, state: FSMContext):
 
     except Exception as e:
         ERROR_LOG.append(str(e))
-        await status.edit_text("❌ Ошибка генерации.")
+        await status.edit_text(f"❌ Ошибка генерации:\n{str(e)}")
+
 
 # ================= WEBHOOK =================
 
