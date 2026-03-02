@@ -168,7 +168,6 @@ async def about(callback: CallbackQuery):
 
 
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
-
 @dp.callback_query(F.data == "profile")
 async def profile(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -190,6 +189,7 @@ async def profile(callback: CallbackQuery):
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
         ])
     )
+
     await callback.answer()
 
 
