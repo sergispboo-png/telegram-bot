@@ -46,7 +46,7 @@ ADMIN_ID = 373830941
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"https://{PUBLIC_DOMAIN}{WEBHOOK_PATH}"
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
