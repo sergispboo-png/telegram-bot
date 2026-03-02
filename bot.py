@@ -253,13 +253,7 @@ async def receive_image(message: Message, state: FSMContext):
 async def process_prompt(message: Message, state: FSMContext):
 
     user_id = message.from_user.id
-    user = get_user(user_id)
-
-if not user:
-    add_user(user_id)
-    user = get_user(user_id)
-
-balance, model, format_value = user
+    balance, model, format_value = get_user(user_id)
 
     if balance < GENERATION_PRICE:
         await message.answer("❌ Недостаточно средств.", reply_markup=main_menu())
