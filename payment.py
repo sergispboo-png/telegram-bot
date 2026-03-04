@@ -15,13 +15,16 @@ def create_payment(user_id: int, amount: int):
         },
         "confirmation": {
             "type": "redirect",
-            "return_url": "https://t.me/YOUR_BOT_USERNAME"
+            "return_url": "https://t.me/LuxRenderBot"
         },
         "capture": True,
-        "description": f"Пополнение баланса LuxRender {user_id}",
+        "description": f"LuxRender balance topup",
         "metadata": {
-            "user_id": user_id
+            "user_id": str(user_id)
         }
     }, uuid.uuid4())
 
-    return payment.confirmation.confirmation_url
+    return {
+        "payment_id": payment.id,
+        "payment_url": payment.confirmation.confirmation_url
+    }
