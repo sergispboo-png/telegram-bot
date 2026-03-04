@@ -18,14 +18,13 @@ CREATE TABLE IF NOT EXISTS users (
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS payments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_id TEXT PRIMARY KEY,
     user_id INTEGER,
     amount INTEGER,
     status TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """)
-
 # ================= GENERATIONS ================= #
 
 cursor.execute("""
@@ -109,10 +108,10 @@ def get_all_user_ids():
 
 # ================= PAYMENTS FUNCTIONS ================= #
 
-def add_payment(user_id: int, amount: int, status: str):
+def add_payment(payment_id: str, user_id: int, amount: int, status: str):
     cursor.execute(
-        "INSERT INTO payments (user_id, amount, status) VALUES (?, ?, ?)",
-        (user_id, amount, status)
+        "INSERT INTO payments (payment_id, user_id, amount, status) VALUES (?, ?, ?, ?)",
+        (payment_id, user_id, amount, status)
     )
     conn.commit()
 
