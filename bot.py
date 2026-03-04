@@ -1,4 +1,6 @@
-import os
+import hmac
+import hashlib
+import osimport os
 import logging
 import base64
 from aiohttp import web
@@ -54,6 +56,27 @@ dp = Dispatcher(storage=MemoryStorage())
 
 ERROR_LOG = []
 GENERATION_PRICE = 10
+
+# ================= GENERATION QUEUE =================
+
+GENERATION_DELAY = 15
+last_generation_time = 0
+
+import time
+
+
+async def check_generation_queue():
+
+    global last_generation_time
+
+    now = time.time()
+
+    if now - last_generation_time < GENERATION_DELAY:
+        wait = int(GENERATION_DELAY - (now - last_generation_time))
+        return False, wait
+
+    last_generation_time = now
+    return True, 0
 # бонусы за пополнение
 BONUS_TABLE = {
     100: 0,
@@ -460,6 +483,21 @@ async def on_shutdown(app):
 
 async def yookassa_webhook(request):
 
+    body = await request.read()
+
+    signature = request.headers.get("Yookassa-Signature")
+
+    secret_key = os.getenv("YOOKASSA_SECRET_KEY")
+
+    generated_signature = hmac.new(
+        secret_key.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+
+    if signature != generated_signature:
+        return web.Response(text="invalid signature", status=403)
+
     data = await request.json()
 
     event = data.get("event")
@@ -471,9 +509,6 @@ async def yookassa_webhook(request):
     payment_id = obj["id"]
     amount = int(float(obj["amount"]["value"]))
     user_id = int(obj["metadata"]["user_id"])
-
-    bonus = BONUS_TABLE.get(amount, 0)
-    total_amount = amount + bonus
 
     from database import conn, cursor
 
@@ -487,6 +522,9 @@ async def yookassa_webhook(request):
     if exists:
         return web.Response(text="already processed")
 
+    bonus = BONUS_TABLE.get(amount, 0)
+    total_amount = amount + bonus
+
     cursor.execute(
         "INSERT INTO payments (payment_id, user_id, amount, status) VALUES (?, ?, ?, ?)",
         (payment_id, user_id, amount, "success")
@@ -496,9 +534,24 @@ async def yookassa_webhook(request):
 
     update_balance(user_id, total_amount)
 
+    try:
+        await bot.send_message(
+            user_id,
+            f"💳 <b>Платёж получен!</b>\n\n"
+            f"Баланс пополнен на <b>{total_amount}₽</b>\n"
+            f"Бонус: <b>{bonus}₽</b>",
+            parse_mode="HTML"
+        )
+    except:
+        pass
+
     logging.warning(f"Payment success: {user_id} +{total_amount}")
 
     return web.Response(text="OK")
+
+
+# ================= SERVER =================
+
 app = web.Application()
 app.router.add_post("/yookassa", yookassa_webhook)
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
