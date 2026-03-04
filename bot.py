@@ -34,6 +34,7 @@ from database import (
 )
 
 from generator import generate_image_openrouter
+from payment import create_payment
 
 
 # ================= НАСТРОЙКИ =================
