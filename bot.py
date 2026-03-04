@@ -243,7 +243,38 @@ async def create_payment_handler(callback: CallbackQuery):
     )
 
     await callback.answer()
+@dp.callback_query(F.data == "payments_history")
+async def payments_history(callback: CallbackQuery):
 
+    from database import conn
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT amount, created_at FROM payments WHERE user_id=? ORDER BY created_at DESC",
+        (callback.from_user.id,)
+    )
+
+    payments = cursor.fetchall()
+
+    if not payments:
+        text = "📜 История платежей пуста."
+    else:
+        text = "📜 <b>История платежей</b>\n\n"
+
+        for amount, date in payments[:10]:
+            text += f"💳 {amount}₽ — {date}\n"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="topup")]
+    ])
+
+    await callback.message.edit_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
 # ================= ГЕНЕРАЦИЯ =================
 
 @dp.callback_query(F.data == "generate")
@@ -425,8 +456,51 @@ async def on_shutdown(app):
     await bot.delete_webhook()
     await bot.session.close()
 
+# ================= YOOKASSA WEBHOOK =================
 
+async def yookassa_webhook(request):
+
+    data = await request.json()
+
+    event = data.get("event")
+    obj = data.get("object", {})
+
+    if event != "payment.succeeded":
+        return web.Response(text="ignored")
+
+    payment_id = obj["id"]
+    amount = int(float(obj["amount"]["value"]))
+    user_id = int(obj["metadata"]["user_id"])
+
+    bonus = BONUS_TABLE.get(amount, 0)
+    total_amount = amount + bonus
+
+    from database import conn, cursor
+
+    cursor.execute(
+        "SELECT payment_id FROM payments WHERE payment_id=?",
+        (payment_id,)
+    )
+
+    exists = cursor.fetchone()
+
+    if exists:
+        return web.Response(text="already processed")
+
+    cursor.execute(
+        "INSERT INTO payments (payment_id, user_id, amount, status) VALUES (?, ?, ?, ?)",
+        (payment_id, user_id, amount, "success")
+    )
+
+    conn.commit()
+
+    update_balance(user_id, total_amount)
+
+    logging.warning(f"Payment success: {user_id} +{total_amount}")
+
+    return web.Response(text="OK")
 app = web.Application()
+app.router.add_post("/yookassa", yookassa_webhook)
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
