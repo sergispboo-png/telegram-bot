@@ -1,6 +1,6 @@
 import hmac
 import hashlib
-import osimport os
+import os
 import logging
 import base64
 from aiohttp import web
@@ -60,22 +60,22 @@ GENERATION_PRICE = 10
 # ================= GENERATION QUEUE =================
 
 GENERATION_DELAY = 15
-last_generation_time = 0
+user_generation_times = {}
 
 import time
 
 
-async def check_generation_queue():
-
-    global last_generation_time
+async def check_generation_queue(user_id):
 
     now = time.time()
 
-    if now - last_generation_time < GENERATION_DELAY:
-        wait = int(GENERATION_DELAY - (now - last_generation_time))
+    last_time = user_generation_times.get(user_id, 0)
+
+    if now - last_time < GENERATION_DELAY:
+        wait = int(GENERATION_DELAY - (now - last_time))
         return False, wait
 
-    last_generation_time = now
+    user_generation_times[user_id] = now
     return True, 0
 # бонусы за пополнение
 BONUS_TABLE = {
@@ -357,7 +357,7 @@ async def receive_image(message: Message, state: FSMContext):
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
-    allowed, wait = await check_generation_queue()
+    allowed, wait = await check_generation_queue(message.from_user.id)
 
     if not allowed:
         await message.answer(
