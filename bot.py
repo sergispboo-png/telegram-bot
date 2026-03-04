@@ -357,6 +357,15 @@ async def receive_image(message: Message, state: FSMContext):
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
+    allowed, wait = await check_generation_queue()
+
+    if not allowed:
+        await message.answer(
+            f"⏳ Сервер сейчас занят.\n"
+            f"Попробуйте снова через {wait} сек."
+        )
+        return
+
     user_id = message.from_user.id
     balance, model, format_value = get_user(user_id)
 
