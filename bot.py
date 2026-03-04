@@ -54,7 +54,13 @@ dp = Dispatcher(storage=MemoryStorage())
 
 ERROR_LOG = []
 GENERATION_PRICE = 10
-
+# бонусы за пополнение
+BONUS_TABLE = {
+    100: 0,
+    500: 50,
+    1000: 150,
+    3000: 500
+}
 
 # ================= FSM =================
 
@@ -192,7 +198,51 @@ async def profile(callback: CallbackQuery):
     )
 
     await callback.answer()
+# ================= ПОПОЛНЕНИЕ =================
 
+@dp.callback_query(F.data == "topup")
+async def topup(callback: CallbackQuery):
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="100₽", callback_data="pay_100")],
+        [InlineKeyboardButton(text="500₽ + 50₽ бонус", callback_data="pay_500")],
+        [InlineKeyboardButton(text="1000₽ + 150₽ бонус", callback_data="pay_1000")],
+        [InlineKeyboardButton(text="3000₽ + 500₽ бонус", callback_data="pay_3000")],
+        [InlineKeyboardButton(text="📜 История платежей", callback_data="payments_history")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
+    ])
+
+    await callback.message.edit_text(
+        "💰 <b>Пополнение баланса</b>\n\n"
+        "Выберите сумму:",
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("pay_"))
+async def create_payment_handler(callback: CallbackQuery):
+
+    amount = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
+
+    payment = create_payment(user_id, amount)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Оплатить", url=payment["payment_url"])],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="topup")]
+    ])
+
+    await callback.message.edit_text(
+        f"💳 Пополнение баланса\n\n"
+        f"Сумма: {amount}₽\n\n"
+        f"Нажмите кнопку ниже для оплаты.",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
 
 # ================= ГЕНЕРАЦИЯ =================
 
