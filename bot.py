@@ -185,15 +185,65 @@ async def back_main(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
-    await callback.message.edit_text(
+
+    text = (
         "ℹ️ <b>О сервисе LuxRender</b>\n\n"
-        "AI-генерация изображений.\n"
-        "Стоимость — 10₽.",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-        ])
+        "LuxRender — это Telegram-бот для генерации изображений "
+        "с помощью искусственного интеллекта.\n\n"
+
+        "🖼 <b>Модели для изображений:</b>\n"
+        "• Nano Banana — быстрая генерация\n"
+        "• Nano Banana Pro — профессиональное качество\n"
+        "• SeeDream 4.0 / 4.5 — фотореализм\n"
+
+        "✨ <b>Возможности:</b>\n"
+        "• Создание изображений по тексту\n"
+        "• Редактирование фото\n"
+        "• Оживление изображений\n"
+        "• Готовые шаблоны промптов\n"
+
+        "🔒 <b>Конфиденциальность:</b>\n"
+        "Данные хранятся до 24 часов и используются "
+        "только для работы сервиса.\n\n"
+
+        "💙 Проект развивается благодаря вашей обратной связи!"
     )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔒 Политика конфиденциальности",
+                    url="https://t.me/LuxRenderBot"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📄 Пользовательское соглашение",
+                    url="https://t.me/LuxRenderBot"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💬 Техническая поддержка",
+                    url="https://t.me/SantaSpb1"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅ Назад",
+                    callback_data="back_main"
+                )
+            ]
+        ]
+    )
+
+    await callback.message.edit_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
     await callback.answer()
 
 
