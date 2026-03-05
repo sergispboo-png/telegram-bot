@@ -59,6 +59,9 @@ ERROR_LOG = []
 GENERATION_PRICE = 10
 
 # ================= GENERATION QUEUE =================
+import asyncio
+
+generation_queue = asyncio.Queue()
 
 GENERATION_DELAY = 15
 user_generation_times = {}
@@ -426,50 +429,73 @@ async def process_prompt(message: Message, state: FSMContext):
         await message.answer("❌ Недостаточно средств.", reply_markup=main_menu())
         return
 
-    status = await message.answer("🎨 Генерирую...")
+   data = await state.get_data()
+user_image = data.get("user_image")
 
-    try:
-        data = await state.get_data()
-        user_image = data.get("user_image")
+await generation_queue.put({
+    "message": message,
+    "prompt": message.text,
+    "model": model,
+    "format": format_value,
+    "image": user_image,
+    "user_id": user_id,
+    "state": state
+})
 
-        result = await generate_image_openrouter(
-            prompt=message.text,
-            model=model,
-            format_value=format_value,
-            user_image=user_image
-        )
-
-        if "image_bytes" not in result:
-            ERROR_LOG.append(str(result))
-            await status.edit_text("❌ Ошибка генерации.", reply_markup=after_generation_menu())
-            return
-
-        image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
-        buffer = BytesIO()
-        image.save(buffer, format="JPEG")
-
-        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-        await message.answer_photo(file)
-
-        deduct_balance(user_id, GENERATION_PRICE)
-        add_generation(user_id, model)
-
-        new_balance = get_user(user_id)[0]
-
-        await message.answer(
-            f"✅ Готово!\n💎 Остаток: {new_balance}₽",
-            reply_markup=after_generation_menu()
-        )
-
-        await state.clear()
-
-    except Exception as e:
-        ERROR_LOG.append(str(e))
-        await status.edit_text("❌ Ошибка сервера.", reply_markup=after_generation_menu())
+await message.answer("⏳ Запрос добавлен в очередь генерации...")
 
 
 # ================= АДМИН =================
+async def generation_worker():
+    while True:
+        task = await generation_queue.get()
 
+        message = task["message"]
+        prompt = task["prompt"]
+        model = task["model"]
+        format_value = task["format"]
+        user_image = task["image"]
+        user_id = task["user_id"]
+        state = task["state"]
+
+        try:
+            result = await generate_image_openrouter(
+                prompt=prompt,
+                model=model,
+                format_value=format_value,
+                user_image=user_image
+            )
+
+            if "image_bytes" not in result:
+                await message.answer("❌ Ошибка генерации.")
+                generation_queue.task_done()
+                continue
+
+            image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
+
+            buffer = BytesIO()
+            image.save(buffer, format="JPEG")
+
+            file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+
+            await message.answer_photo(file)
+
+            deduct_balance(user_id, GENERATION_PRICE)
+            add_generation(user_id, model)
+
+            new_balance = get_user(user_id)[0]
+
+            await message.answer(
+                f"✅ Готово!\n💎 Остаток: {new_balance}₽",
+                reply_markup=after_generation_menu()
+            )
+
+            await state.clear()
+
+        except Exception as e:
+            await message.answer("❌ Ошибка сервера.")
+
+        generation_queue.task_done()
 @dp.message(Command("stats"))
 async def admin_stats(message: Message):
     if message.from_user.id != ADMIN_ID:
@@ -532,9 +558,10 @@ async def admin_logs(message: Message):
 
 
 # ================= WEBHOOK =================
-
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
+
+    asyncio.create_task(generation_worker())
 
 
 async def on_shutdown(app):
