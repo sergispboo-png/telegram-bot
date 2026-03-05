@@ -195,13 +195,13 @@ async def about(callback: CallbackQuery):
         "🖼 <b>Модели для изображений:</b>\n"
         "• Nano Banana — быстрая генерация\n"
         "• Nano Banana Pro — профессиональное качество\n"
-        "• SeeDream 4.0 / 4.5 — фотореализм\n"
+        "• SeeDream 4.0 / 4.5 — фотореализм\n\n"
 
         "✨ <b>Возможности:</b>\n"
         "• Создание изображений по тексту\n"
         "• Редактирование фото\n"
         "• Оживление изображений\n"
-        "• Готовые шаблоны промптов\n"
+        "• Готовые шаблоны промптов\n\n"
 
         "🔒 <b>Конфиденциальность:</b>\n"
         "Данные хранятся до 24 часов и используются "
@@ -209,38 +209,47 @@ async def about(callback: CallbackQuery):
 
         "💙 Проект развивается благодаря вашей обратной связи!"
     )
-keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="🔒 Политика конфиденциальности",
-                web_app=WebAppInfo(
-                    url=f"https://{PUBLIC_DOMAIN}/privacy"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔒 Политика конфиденциальности",
+                    web_app=WebAppInfo(
+                        url=f"https://{PUBLIC_DOMAIN}/privacy"
+                    )
                 )
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="📄 Пользовательское соглашение",
-                web_app=WebAppInfo(
-                    url=f"https://{PUBLIC_DOMAIN}/terms"
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📄 Пользовательское соглашение",
+                    web_app=WebAppInfo(
+                        url=f"https://{PUBLIC_DOMAIN}/terms"
+                    )
                 )
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="💬 Техническая поддержка",
-                url="https://t.me/SantaSpb1"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="⬅ Назад",
-                callback_data="back_main"
-            )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💬 Техническая поддержка",
+                    url="https://t.me/SantaSpb1"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅ Назад",
+                    callback_data="back_main"
+                )
+            ]
         ]
-    ]
-)
+    )
+
+    await callback.message.edit_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
 @dp.callback_query(F.data == "profile")
 async def profile(callback: CallbackQuery):
