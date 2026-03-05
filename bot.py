@@ -224,8 +224,8 @@ async def about(callback: CallbackQuery):
                 InlineKeyboardButton(
                     text="📄 Пользовательское соглашение",
                     web_app=WebAppInfo(
-                        url="https://luxrender.vercel.app/terms.html"
-                    )
+    url=f"https://{PUBLIC_DOMAIN}/terms"
+)
                 )
             ],
             [
