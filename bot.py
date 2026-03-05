@@ -212,10 +212,10 @@ async def about(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text="🔒 Политика конфиденциальности",
-                    url="https://t.me/LuxRenderBot"
-                )
+               InlineKeyboardButton(
+    text="🔒 Политика конфиденциальности",
+    callback_data="privacy_policy"
+)
             ],
             [
                 InlineKeyboardButton(
@@ -475,6 +475,20 @@ async def user_agreement(callback: CallbackQuery):
     await callback.message.answer_document(
         file,
         caption="📄 Пользовательское соглашение LuxRender"
+    )
+
+    await callback.answer()
+@dp.callback_query(F.data == "privacy_policy")
+async def privacy_policy(callback: CallbackQuery):
+
+    file = BufferedInputFile(
+        open("privacy.html", "rb").read(),
+        filename="LuxRender_Privacy_Policy.html"
+    )
+
+    await callback.message.answer_document(
+        file,
+        caption="🔒 Политика конфиденциальности LuxRender"
     )
 
     await callback.answer()
