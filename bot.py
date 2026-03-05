@@ -241,15 +241,6 @@ keyboard = InlineKeyboardMarkup(
         ]
     ]
 )
-    await callback.message.edit_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
-
-    await callback.answer()
-
-
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
 @dp.callback_query(F.data == "profile")
 async def profile(callback: CallbackQuery):
