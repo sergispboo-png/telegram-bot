@@ -14,6 +14,8 @@ from aiogram.types import (
     InlineKeyboardButton,
     CallbackQuery,
     BufferedInputFile,
+    WebAppInfo
+)
 )
 from aiogram.filters import CommandStart, Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
@@ -209,34 +211,38 @@ async def about(callback: CallbackQuery):
         "💙 Проект развивается благодаря вашей обратной связи!"
     )
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-               InlineKeyboardButton(
-    text="🔒 Политика конфиденциальности",
-    callback_data="privacy_policy"
-)
-            ],
-            [
-                InlineKeyboardButton(
-    text="📄 Пользовательское соглашение",
-    callback_data="user_agreement"
-)
-            ],
-            [
-                InlineKeyboardButton(
-                    text="💬 Техническая поддержка",
-                    url="https://t.me/SantaSpb1"
+   keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🔒 Политика конфиденциальности",
+                web_app=WebAppInfo(
+                    url="https://luxrender.vercel.app/privacy.html"
                 )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="⬅ Назад",
-                    callback_data="back_main"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📄 Пользовательское соглашение",
+                web_app=WebAppInfo(
+                    url="https://luxrender.vercel.app/terms.html"
                 )
-            ]
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="💬 Техническая поддержка",
+                url="https://t.me/SantaSpb1"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="⬅ Назад",
+                callback_data="back_main"
+            )
         ]
-    )
+    ]
+)
 
     await callback.message.edit_text(
         text,
@@ -635,11 +641,25 @@ async def yookassa_webhook(request):
 
     return web.Response(text="OK")
 
+# ================= MINI APP PAGES =================
 
+async def privacy_page(request):
+    return web.FileResponse("privacy.html")
+
+async def terms_page(request):
+    return web.FileResponse("terms.html")
 # ================= SERVER =================
 
 app = web.Application()
+
+# страницы Mini App
+app.router.add_get("/privacy", privacy_page)
+app.router.add_get("/terms", terms_page)
+
+# webhook оплаты
 app.router.add_post("/yookassa", yookassa_webhook)
+
+# webhook telegram
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
