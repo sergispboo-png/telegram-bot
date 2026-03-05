@@ -210,38 +210,38 @@ async def about(callback: CallbackQuery):
         "💙 Проект развивается благодаря вашей обратной связи!"
     )
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-               InlineKeyboardButton(
-    text="🔒 Политика конфиденциальности",
-    web_app=WebAppInfo(
-        url=f"https://{PUBLIC_DOMAIN}/privacy"
-    )
-)
-
-InlineKeyboardButton(
-    text="📄 Пользовательское соглашение",
-    web_app=WebAppInfo(
-        url=f"https://{PUBLIC_DOMAIN}/terms"
-    )
-)
-            ],
-            [
-                InlineKeyboardButton(
-                    text="💬 Техническая поддержка",
-                    url="https://t.me/SantaSpb1"
+   keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🔒 Политика конфиденциальности",
+                web_app=WebAppInfo(
+                    url=f"https://{PUBLIC_DOMAIN}/privacy"
                 )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="⬅ Назад",
-                    callback_data="back_main"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📄 Пользовательское соглашение",
+                web_app=WebAppInfo(
+                    url=f"https://{PUBLIC_DOMAIN}/terms"
                 )
-            ]
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="💬 Техническая поддержка",
+                url="https://t.me/SantaSpb1"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="⬅ Назад",
+                callback_data="back_main"
+            )
         ]
-    )
-
+    ]
+)
     await callback.message.edit_text(
         text,
         parse_mode="HTML",
