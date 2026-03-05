@@ -16,7 +16,6 @@ from aiogram.types import (
     BufferedInputFile,
     WebAppInfo
 )
-)
 from aiogram.filters import CommandStart, Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.fsm.state import State, StatesGroup
@@ -210,8 +209,7 @@ async def about(callback: CallbackQuery):
 
         "💙 Проект развивается благодаря вашей обратной связи!"
     )
-
-   keyboard = InlineKeyboardMarkup(
+keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [
             InlineKeyboardButton(
@@ -470,34 +468,7 @@ async def process_prompt(message: Message, state: FSMContext):
         ERROR_LOG.append(str(e))
         await status.edit_text("❌ Ошибка сервера.", reply_markup=after_generation_menu())
 
-@dp.callback_query(F.data == "user_agreement")
-async def user_agreement(callback: CallbackQuery):
 
-    file = BufferedInputFile(
-        open("terms.html", "rb").read(),
-        filename="LuxRender_User_Agreement.html"
-    )
-
-    await callback.message.answer_document(
-        file,
-        caption="📄 Пользовательское соглашение LuxRender"
-    )
-
-    await callback.answer()
-@dp.callback_query(F.data == "privacy_policy")
-async def privacy_policy(callback: CallbackQuery):
-
-    file = BufferedInputFile(
-        open("privacy.html", "rb").read(),
-        filename="LuxRender_Privacy_Policy.html"
-    )
-
-    await callback.message.answer_document(
-        file,
-        caption="🔒 Политика конфиденциальности LuxRender"
-    )
-
-    await callback.answer()
 # ================= АДМИН =================
 
 @dp.message(Command("stats"))
