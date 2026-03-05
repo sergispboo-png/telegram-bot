@@ -426,23 +426,26 @@ async def process_prompt(message: Message, state: FSMContext):
     balance, model, format_value = get_user(user_id)
 
     if balance < GENERATION_PRICE:
-        await message.answer("❌ Недостаточно средств.", reply_markup=main_menu())
+        await message.answer(
+            "❌ Недостаточно средств.",
+            reply_markup=main_menu()
+        )
         return
 
-   data = await state.get_data()
-user_image = data.get("user_image")
+    data = await state.get_data()
+    user_image = data.get("user_image")
 
-await generation_queue.put({
-    "message": message,
-    "prompt": message.text,
-    "model": model,
-    "format": format_value,
-    "image": user_image,
-    "user_id": user_id,
-    "state": state
-})
+    await generation_queue.put({
+        "message": message,
+        "prompt": message.text,
+        "model": model,
+        "format": format_value,
+        "image": user_image,
+        "user_id": user_id,
+        "state": state
+    })
 
-await message.answer("⏳ Запрос добавлен в очередь генерации...")
+    await message.answer("⏳ Запрос добавлен в очередь генерации...")
 
 
 # ================= АДМИН =================
