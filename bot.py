@@ -213,20 +213,19 @@ async def about(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text="🔒 Политика конфиденциальности",
-                    web_app=WebAppInfo(
-                        url="https://luxrender.vercel.app/privacy.html"
-                    )
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="📄 Пользовательское соглашение",
-                    web_app=WebAppInfo(
-    url=f"https://{PUBLIC_DOMAIN}/terms"
+               InlineKeyboardButton(
+    text="🔒 Политика конфиденциальности",
+    web_app=WebAppInfo(
+        url=f"https://{PUBLIC_DOMAIN}/privacy"
+    )
 )
-                )
+
+InlineKeyboardButton(
+    text="📄 Пользовательское соглашение",
+    web_app=WebAppInfo(
+        url=f"https://{PUBLIC_DOMAIN}/terms"
+    )
+)
             ],
             [
                 InlineKeyboardButton(
