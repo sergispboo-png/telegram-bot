@@ -209,8 +209,7 @@ async def about(callback: CallbackQuery):
 
         "💙 Проект развивается благодаря вашей обратной связи!"
     )
-
-   keyboard = InlineKeyboardMarkup(
+keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [
             InlineKeyboardButton(
