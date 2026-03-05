@@ -219,9 +219,9 @@ async def about(callback: CallbackQuery):
             ],
             [
                 InlineKeyboardButton(
-                    text="📄 Пользовательское соглашение",
-                    url="https://t.me/LuxRenderBot"
-                )
+    text="📄 Пользовательское соглашение",
+    callback_data="user_agreement"
+)
             ],
             [
                 InlineKeyboardButton(
