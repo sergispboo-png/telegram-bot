@@ -450,7 +450,9 @@ async def process_prompt(message: Message, state: FSMContext):
 
 # ================= АДМИН =================
 async def generation_worker():
+
     while True:
+
         task = await generation_queue.get()
 
         message = task["message"]
@@ -462,25 +464,32 @@ async def generation_worker():
         state = task["state"]
 
         try:
+
+            result = None
+
+            # повтор генерации если API временно упал
             for attempt in range(2):
 
-    result = await generate_image_openrouter(
-        prompt=prompt,
-        model=model,
-        format_value=format_value,
-        user_image=user_image
-    )
+                result = await generate_image_openrouter(
+                    prompt=prompt,
+                    model=model,
+                    format_value=format_value,
+                    user_image=user_image
+                )
 
-    if "image_bytes" in result:
-        break
+                if result and "image_bytes" in result:
+                    break
 
-            if "image_bytes" not in result:
-    await message.answer(
-        "❌ Ошибка генерации.\nПопробуйте снова.",
-        reply_markup=after_generation_menu()
-    )
-    generation_queue.task_done()
-    continue
+            # если генерация не удалась
+            if not result or "image_bytes" not in result:
+
+                await message.answer(
+                    "❌ Ошибка генерации.\nПопробуйте снова.",
+                    reply_markup=after_generation_menu()
+                )
+
+                generation_queue.task_done()
+                continue
 
             image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
 
@@ -504,12 +513,13 @@ async def generation_worker():
             await state.clear()
 
         except Exception as e:
-    ERROR_LOG.append(str(e))
 
-    await message.answer(
-        "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
-        reply_markup=after_generation_menu()
-    )
+            ERROR_LOG.append(str(e))
+
+            await message.answer(
+                "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
+                reply_markup=after_generation_menu()
+            )
 
         generation_queue.task_done()
 @dp.message(Command("stats"))
