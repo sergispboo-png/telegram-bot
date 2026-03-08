@@ -1,80 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
 <meta charset="UTF-8">
-<h2>🔒 Политика конфиденциальности</h2>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<b>Дата публикации:</b> 10 марта 2026 года<br>
-<b>Проект:</b> LuxRender<br>
-<b>Платформа:</b> Telegram<br><br>
+<title>LuxRender — Политика конфиденциальности</title>
 
-<h3>📋 1. Общие положения</h3>
+<style>
 
-Настоящая Политика конфиденциальности описывает порядок обработки персональных и технических данных пользователей Telegram-бота LuxRender.<br><br>
+body{
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+background:#f3f5fb;
+margin:0;
+padding:20px;
+color:#1f1f1f;
+}
 
-Используя бота, вы подтверждаете своё согласие с данной Политикой.
+.container{
+max-width:700px;
+margin:auto;
+}
 
-<h3>📊 2. Собираемые данные</h3>
+.header{
+text-align:center;
+margin-bottom:25px;
+}
 
-Бот обрабатывает следующие категории данных:<br><br>
+.logo{
+font-size:24px;
+font-weight:700;
+}
 
-<b>1. Telegram-данные:</b><br>
-Telegram ID, username и имя профиля<br><br>
+.subtitle{
+color:#666;
+font-size:14px;
+}
 
-<b>2. Пользовательские данные:</b><br>
-• текстовые промпты и команды<br>
-• сгенерированные изображения (хранятся до 24 часов)<br><br>
+.card{
+background:white;
+border-radius:16px;
+padding:20px;
+margin-bottom:16px;
+box-shadow:0 6px 20px rgba(0,0,0,0.05);
+}
 
-<b>3. Финансовые данные:</b><br>
-• баланс и операции<br>
-• история платежей<br>
-• платёжный агрегатор — ЮKassa<br><br>
+h1{
+font-size:22px;
+margin-bottom:10px;
+}
 
-<b>4. Техническая статистика:</b><br>
-• количество генераций<br>
-• время отклика моделей<br>
-• дата обращений<br>
+h2{
+font-size:18px;
+margin-bottom:8px;
+}
 
-<h3>🎯 3. Цели обработки данных</h3>
+p{
+line-height:1.6;
+font-size:15px;
+}
 
-Данные используются для:<br>
-• работы генерации изображений<br>
-• ведения баланса и платежей<br>
-• улучшения сервиса<br>
-• предотвращения злоупотреблений<br>
-• поддержки пользователей<br>
+ul{
+padding-left:20px;
+}
 
-<h3>🔄 4. Передача данных третьим лицам</h3>
+li{
+margin-bottom:6px;
+}
 
-Для генерации изображений используются API:<br><br>
+.badge{
+background:#eef2ff;
+padding:4px 8px;
+border-radius:8px;
+font-size:12px;
+}
 
-Google — Gemini 2.5 Flash Image<br>
-ByteDance — SeeDream 4.0<br><br>
+a{
+color:#4c6fff;
+text-decoration:none;
+font-weight:500;
+}
 
-Передаются только необходимые данные.
+.footer{
+text-align:center;
+margin-top:30px;
+font-size:13px;
+color:#777;
+}
 
-<h3>💾 5. Хранение данных</h3>
+/* DARK MODE */
 
-• изображения хранятся до 24 часов<br>
-• финансовые данные — до 6 месяцев<br><br>
+@media (prefers-color-scheme: dark){
 
-Удаление данных можно запросить у поддержки.
+body{
+background:#0f0f10;
+color:white;
+}
 
-<h3>🔒 6. Безопасность</h3>
+.card{
+background:#1e1f22;
+box-shadow:none;
+}
 
-Данные защищены современными средствами безопасности.<br>
-Передача осуществляется через HTTPS и Telegram API.
+.subtitle{
+color:#aaa;
+}
 
-<h3>🔞 7. Возрастные ограничения</h3>
+.footer{
+color:#999;
+}
 
-Использование бота разрешено пользователям старше 16 лет.
+}
 
-<h3>✏️ 8. Изменения политики</h3>
+</style>
+</head>
 
-Разработчик может обновлять политику конфиденциальности.
+<body>
 
-<h3>📧 9. Контакты</h3>
+<div class="container">
 
-По вопросам обработки данных:
+<div class="header">
+<div class="logo">🔒 Политика конфиденциальности</div>
+<div class="subtitle">LuxRender • Telegram Mini App</div>
+</div>
 
-<a href="https://t.me/SantaSpb1" class="support-btn">Связаться с поддержкой</a>
 
-<br><br>
+<div class="card">
+
+<p>
+Дата публикации: <span class="badge">10 марта 2026</span><br>
+Проект: <b>LuxRender</b><br>
+Платформа: Telegram<br>
+Контакт: <a href="https://t.me/SantaSpb1">@SantaSpb1</a>
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h2>📋 1. Общие положения</h2>
+
+<p>
+Настоящая Политика конфиденциальности описывает порядок обработки персональных и технических данных пользователей Telegram-бота LuxRender.
+</p>
+
+<p>
+Используя бота, вы подтверждаете согласие с данной Политикой.
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h2>📊 2. Собираемые данные</h2>
+
+<ul>
+<li>Telegram ID, username и имя профиля</li>
+<li>текстовые промпты и команды</li>
+<li>сгенерированные изображения (до 24 часов)</li>
+<li>баланс и операции пополнения</li>
+<li>история платежей</li>
+<li>техническая статистика использования</li>
+</ul>
+
+</div>
+
+
+<div class="card">
+
+<h2>🎯 3. Цели обработки данных</h2>
+
+<ul>
+<li>генерация изображений</li>
+<li>работа системы баланса</li>
+<li>аналитика и улучшение сервиса</li>
+<li>предотвращение злоупотреблений</li>
+<li>поддержка пользователей</li>
+</ul>
+
+</div>
+
+
+<div class="card">
+
+<h2>💾 4. Хранение данных</h2>
+
+<p>
+Сгенерированные изображения хранятся до 24 часов и автоматически удаляются.
+</p>
+
+<p>
+Финансовые данные могут храниться до 6 месяцев для учета операций.
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h2>📧 5. Контакты</h2>
+
+<p>
+По вопросам обработки данных обращайтесь:
+</p>
+
+<p>
+👉 <a href="https://t.me/SantaSpb1">@SantaSpb1</a>
+</p>
+
+</div>
+
+
+<div class="footer">
 © 2026 LuxRender
+</div>
+
+</div>
+
+</body>
+</html>
