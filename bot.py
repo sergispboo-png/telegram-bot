@@ -462,7 +462,7 @@ await message.answer(
 
 async def generation_worker():
 
-while True:
+    while True:
 
     data = await redis.blpop(GENERATION_QUEUE_KEY)
 
@@ -552,7 +552,7 @@ await message.answer(
 
 @dp.message(Command("addbalance"))
 async def admin_add_balance(message: Message):
-if message.from_user.id != ADMIN_ID:
+    if message.from_user.id != ADMIN_ID:
     return
 
 try:
@@ -565,7 +565,7 @@ except BaseException:
 
 @dp.message(Command("broadcast"))
 async def admin_broadcast(message: Message):
-if message.from_user.id != ADMIN_ID:
+    if message.from_user.id != ADMIN_ID:
     return
 
 text = message.text.replace("/broadcast ", "")
@@ -584,10 +584,10 @@ await message.answer(f"Рассылка завершена. Отправлено
 
 @dp.message(Command("logs"))
 async def admin_logs(message: Message):
-if message.from_user.id != ADMIN_ID:
+    if message.from_user.id != ADMIN_ID:
     return
 
-if not ERROR_LOG:
+    if not ERROR_LOG:
     await message.answer("Ошибок нет.")
 else:
     await message.answer("\n".join(ERROR_LOG[-10:]))
@@ -609,13 +609,13 @@ await bot.session.close()
 
 async def yookassa_webhook(request):
 
-body = await request.read()
+    body = await request.read()
 
-signature = request.headers.get("Yookassa-Signature")
+    signature = request.headers.get("Yookassa-Signature")
 
-secret_key = os.getenv("YOOKASSA_SECRET_KEY")
+    secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 
-generated_signature = hmac.new(
+    generated_signature = hmac.new(
     secret_key.encode(),
     body,
     hashlib.sha256
@@ -678,11 +678,11 @@ return web.Response(text="OK")
 
 
 async def privacy_page(request):
-return web.FileResponse("privacy.html")
+    return web.FileResponse("privacy.html")
 
 
 async def terms_page(request):
-return web.FileResponse("terms.html")
+    return web.FileResponse("terms.html")
 # ================= SERVER =================
 
 app = web.Application()
