@@ -158,7 +158,7 @@ def after_generation_menu():
 
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
-await state.clear()
+    await state.clear()
 add_user(message.from_user.id)
 
 await message.answer(
@@ -177,7 +177,7 @@ await message.answer(
 # ================= НАВИГАЦИЯ =================
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery, state: FSMContext):
-await state.clear()
+    await state.clear()
 
 await callback.message.edit_text(
     "✨ <b>LuxRender</b>\n\n"
@@ -366,9 +366,9 @@ await callback.answer()
 
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery, state: FSMContext):
-await state.clear()
-await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
-await callback.answer()
+    await state.clear()
+    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
+    await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("model_"))
