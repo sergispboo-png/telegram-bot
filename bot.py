@@ -288,8 +288,7 @@ await callback.answer()
 
 @dp.callback_query(F.data == "topup")
 async def topup(callback: CallbackQuery):
-
-keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="100₽", callback_data="pay_100")],
     [InlineKeyboardButton(text="500₽ + 50₽ бонус", callback_data="pay_500")],
     [InlineKeyboardButton(text="1000₽ + 150₽ бонус", callback_data="pay_1000")],
@@ -310,13 +309,12 @@ await callback.answer()
 
 @dp.callback_query(F.data.startswith("pay_"))
 async def create_payment_handler(callback: CallbackQuery):
+    amount = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
 
-amount = int(callback.data.split("_")[1])
-user_id = callback.from_user.id
+    payment = create_payment(user_id, amount)
 
-payment = create_payment(user_id, amount)
-
-keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💳 Оплатить", url=payment["payment_url"])],
     [InlineKeyboardButton(text="⬅ Назад", callback_data="topup")]
 ])
@@ -331,10 +329,8 @@ await callback.message.edit_text(
 await callback.answer()
 @dp.callback_query(F.data == "payments_history")
 async def payments_history(callback: CallbackQuery):
-
-cursor = conn.cursor()
-
-cursor.execute(
+    cursor = conn.cursor()
+    cursor.execute(
     "SELECT amount, created_at FROM payments WHERE user_id=? ORDER BY created_at DESC",
     (callback.from_user.id,)
 )
@@ -372,14 +368,14 @@ async def choose_model(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data.startswith("model_"))
 async def choose_mode(callback: CallbackQuery):
-update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
+    update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
 await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
 await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("mode_"))
 async def choose_format(callback: CallbackQuery, state: FSMContext):
-mode = callback.data.split("_")[1]
+    mode = callback.data.split("_")[1]
 await state.update_data(mode=mode)
 await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
 await callback.answer()
