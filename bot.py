@@ -464,62 +464,63 @@ async def generation_worker():
 
     while True:
 
-    data = await redis.blpop(GENERATION_QUEUE_KEY)
+        data = await redis.blpop(GENERATION_QUEUE_KEY)
 
-    task = json.loads(data[1])
-    chat_id = task["chat_id"]
-    prompt = task["prompt"]
-    model = task["model"]
-    format_value = task["format"]
-    user_image = task["image"]
-    user_id = task["user_id"]
+        task = json.loads(data[1])
+        chat_id = task["chat_id"]
+        prompt = task["prompt"]
+        model = task["model"]
+        format_value = task["format"]
+        user_image = task["image"]
+        user_id = task["user_id"]
 
-    try:
+        try:
 
-        result = None
+            result = None
 
-        # повтор генерации если API временно упал
-        for attempt in range(2):
+            # повтор генерации если API временно упал
+            for attempt in range(2):
 
-            result = await generate_image_openrouter(
-                prompt=prompt,
-                model=model,
-                format_value=format_value,
-                user_image=user_image
-            )
+                result = await generate_image_openrouter(
+                    prompt=prompt,
+                    model=model,
+                    format_value=format_value,
+                    user_image=user_image
+                )
 
-            if result and "image_bytes" in result:
-                break
+                if result and "image_bytes" in result:
+                    break
 
-        # если генерация не удалась
-        if not result or "image_bytes" not in result:
+            # если генерация не удалась
+            if not result or "image_bytes" not in result:
+
+                await bot.send_message(
+                    chat_id,
+                    "❌ Ошибка генерации.\nПопробуйте снова.",
+                    reply_markup=after_generation_menu()
+                )
+
+                continue
+
+            image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
+
+            buffer = BytesIO()
+            image.save(buffer, format="JPEG")
+
+            file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+
+            await bot.send_photo(chat_id, file)
+
+            deduct_balance(user_id, GENERATION_PRICE)
+            add_generation(user_id, model)
+
+            new_balance = get_user(user_id)[0]
 
             await bot.send_message(
                 chat_id,
-                "❌ Ошибка генерации.\nПопробуйте снова.",
+                f"✅ Готово!\n💎 Остаток: {new_balance}₽",
                 reply_markup=after_generation_menu()
             )
-
-            continue
-
-        image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
-
-        buffer = BytesIO()
-        image.save(buffer, format="JPEG")
-
-        file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
-
-        await bot.send_photo(chat_id, file)
-
-        deduct_balance(user_id, GENERATION_PRICE)
-        add_generation(user_id, model)
-
-        new_balance = get_user(user_id)[0]
-
-        await message.answer(
-            f"✅ Готово!\n💎 Остаток: {new_balance}₽",
-            reply_markup=after_generation_menu()
-        )
 
         except Exception as e:
 
@@ -534,78 +535,85 @@ async def generation_worker():
 
 @dp.message(Command("stats"))
 async def admin_stats(message: Message):
-if message.from_user.id != ADMIN_ID:
-    return
 
-users = get_users_count()
-generations = get_generations_count()
-payments_count, payments_sum = get_payments_stats()
+    if message.from_user.id != ADMIN_ID:
+        return
 
-await message.answer(
-    f"📊 Статистика\n\n"
-    f"👥 Пользователей: {users}\n"
-    f"🎨 Генераций: {generations}\n"
-    f"💳 Платежей: {payments_count}\n"
-    f"💰 Доход: {payments_sum}₽"
-)
+    users = get_users_count()
+    generations = get_generations_count()
+    payments_count, payments_sum = get_payments_stats()
+
+    await message.answer(
+        f"📊 Статистика\n\n"
+        f"👥 Пользователей: {users}\n"
+        f"🎨 Генераций: {generations}\n"
+        f"💳 Платежей: {payments_count}\n"
+        f"💰 Доход: {payments_sum}₽"
+    )
 
 
 @dp.message(Command("addbalance"))
 async def admin_add_balance(message: Message):
-    if message.from_user.id != ADMIN_ID:
-    return
 
-try:
-    _, user_id, amount = message.text.split()
-    update_balance(int(user_id), int(amount))
-    await message.answer("Баланс обновлён.")
-except BaseException:
-    await message.answer("Формат: /addbalance USER_ID СУММА")
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        _, user_id, amount = message.text.split()
+        update_balance(int(user_id), int(amount))
+        await message.answer("Баланс обновлён.")
+    except BaseException:
+        await message.answer("Формат: /addbalance USER_ID СУММА")
 
 
 @dp.message(Command("broadcast"))
 async def admin_broadcast(message: Message):
+
     if message.from_user.id != ADMIN_ID:
-    return
+        return
 
-text = message.text.replace("/broadcast ", "")
-users = get_all_user_ids()
+    text = message.text.replace("/broadcast ", "")
+    users = get_all_user_ids()
 
-sent = 0
-for user_id in users:
-    try:
-        await bot.send_message(user_id, text)
-        sent += 1
-    except BaseException:
-        pass
+    sent = 0
+    for user_id in users:
+        try:
+            await bot.send_message(user_id, text)
+            sent += 1
+        except BaseException:
+            pass
 
-await message.answer(f"Рассылка завершена. Отправлено: {sent}")
+    await message.answer(f"Рассылка завершена. Отправлено: {sent}")
 
 
 @dp.message(Command("logs"))
 async def admin_logs(message: Message):
+
     if message.from_user.id != ADMIN_ID:
-    return
+        return
 
     if not ERROR_LOG:
-    await message.answer("Ошибок нет.")
-else:
-    await message.answer("\n".join(ERROR_LOG[-10:]))
+        await message.answer("Ошибок нет.")
+    else:
+        await message.answer("\n".join(ERROR_LOG[-10:]))
 
 
 # ================= WEBHOOK =================
-async def on_startup(app):
-await bot.set_webhook(WEBHOOK_URL)
 
-asyncio.create_task(generation_worker())
+async def on_startup(app):
+
+    await bot.set_webhook(WEBHOOK_URL)
+
+    asyncio.create_task(generation_worker())
 
 
 async def on_shutdown(app):
-await bot.delete_webhook()
-await bot.session.close()
+
+    await bot.delete_webhook()
+    await bot.session.close()
+
 
 # ================= YOOKASSA WEBHOOK =================
-
 
 async def yookassa_webhook(request):
 
@@ -616,66 +624,65 @@ async def yookassa_webhook(request):
     secret_key = os.getenv("YOOKASSA_SECRET_KEY")
 
     generated_signature = hmac.new(
-    secret_key.encode(),
-    body,
-    hashlib.sha256
-).hexdigest()
+        secret_key.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
 
-if signature != generated_signature:
-    return web.Response(text="invalid signature", status=403)
+    if signature != generated_signature:
+        return web.Response(text="invalid signature", status=403)
 
-data = await request.json()
+    data = await request.json()
 
-event = data.get("event")
-obj = data.get("object", {})
+    event = data.get("event")
+    obj = data.get("object", {})
 
-if event != "payment.succeeded":
-    return web.Response(text="ignored")
+    if event != "payment.succeeded":
+        return web.Response(text="ignored")
 
-payment_id = obj["id"]
-amount = int(float(obj["amount"]["value"]))
-user_id = int(obj["metadata"]["user_id"])
+    payment_id = obj["id"]
+    amount = int(float(obj["amount"]["value"]))
+    user_id = int(obj["metadata"]["user_id"])
 
-
-cursor.execute(
-    "SELECT payment_id FROM payments WHERE payment_id=?",
-    (payment_id,)
-)
-
-exists = cursor.fetchone()
-
-if exists:
-    return web.Response(text="already processed")
-
-bonus = BONUS_TABLE.get(amount, 0)
-total_amount = amount + bonus
-
-cursor.execute(
-    "INSERT INTO payments (payment_id, user_id, amount, status) VALUES (?, ?, ?, ?)",
-    (payment_id, user_id, amount, "success")
-)
-
-conn.commit()
-
-update_balance(user_id, total_amount)
-
-try:
-    await bot.send_message(
-        user_id,
-        f"💳 <b>Платёж получен!</b>\n\n"
-        f"Баланс пополнен на <b>{total_amount}₽</b>\n"
-        f"Бонус: <b>{bonus}₽</b>",
-        parse_mode="HTML"
+    cursor.execute(
+        "SELECT payment_id FROM payments WHERE payment_id=?",
+        (payment_id,)
     )
-except BaseException:
-    pass
 
-logging.warning(f"Payment success: {user_id} +{total_amount}")
+    exists = cursor.fetchone()
 
-return web.Response(text="OK")
+    if exists:
+        return web.Response(text="already processed")
+
+    bonus = BONUS_TABLE.get(amount, 0)
+    total_amount = amount + bonus
+
+    cursor.execute(
+        "INSERT INTO payments (payment_id, user_id, amount, status) VALUES (?, ?, ?, ?)",
+        (payment_id, user_id, amount, "success")
+    )
+
+    conn.commit()
+
+    update_balance(user_id, total_amount)
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"💳 <b>Платёж получен!</b>\n\n"
+            f"Баланс пополнен на <b>{total_amount}₽</b>\n"
+            f"Бонус: <b>{bonus}₽</b>",
+            parse_mode="HTML"
+        )
+    except BaseException:
+        pass
+
+    logging.warning(f"Payment success: {user_id} +{total_amount}")
+
+    return web.Response(text="OK")
+
 
 # ================= MINI APP PAGES =================
-
 
 async def privacy_page(request):
     return web.FileResponse("privacy.html")
@@ -683,23 +690,23 @@ async def privacy_page(request):
 
 async def terms_page(request):
     return web.FileResponse("terms.html")
+
+
 # ================= SERVER =================
 
 app = web.Application()
 
-# страницы Mini App
 app.router.add_get("/privacy", privacy_page)
 app.router.add_get("/terms", terms_page)
 
-# webhook оплаты
 app.router.add_post("/yookassa", yookassa_webhook)
 
-# webhook telegram
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
+
 if __name__ == "__main__":
-web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    web.run_app(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
