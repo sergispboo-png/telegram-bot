@@ -1,6 +1,7 @@
 import hmac
 import hashlib
 import os
+import json
 import logging
 import base64
 from aiohttp import web
@@ -464,23 +465,17 @@ await message.answer(
 # ================= АДМИН =================
 async def generation_worker():
 
-    async def generation_worker():
-
-    import json
-
     while True:
 
         data = await redis.blpop(GENERATION_QUEUE_KEY)
 
         task = json.loads(data[1])
-
         chat_id = task["chat_id"]
         prompt = task["prompt"]
         model = task["model"]
         format_value = task["format"]
         user_image = task["image"]
         user_id = task["user_id"]
-        state = task["state"]
 
         try:
 
