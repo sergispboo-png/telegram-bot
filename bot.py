@@ -263,8 +263,8 @@ await callback.answer()
 # ================= ЛИЧНЫЙ КАБИНЕТ =================
 @dp.callback_query(F.data == "profile")
 async def profile(callback: CallbackQuery):
-user_id = callback.from_user.id
-balance = get_user(user_id)[0]
+    user_id = callback.from_user.id
+    balance = get_user(user_id)[0]
 
 cursor = conn.cursor()
 cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
