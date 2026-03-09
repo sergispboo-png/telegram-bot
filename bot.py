@@ -63,10 +63,12 @@ dp = Dispatcher(storage=storage)
 ERROR_LOG = []
 GENERATION_PRICE = 10
 
+GENERATION_QUEUE_KEY = "generation_queue"
+
 # ================= GENERATION QUEUE =================
 import asyncio
 
-generation_queue = asyncio.Queue()
+
 
 GENERATION_DELAY = 15
 user_generation_times = {}
@@ -440,17 +442,25 @@ async def process_prompt(message: Message, state: FSMContext):
     data = await state.get_data()
     user_image = data.get("user_image")
 
-    await generation_queue.put({
-        "message": message,
-        "prompt": message.text,
-        "model": model,
-        "format": format_value,
-        "image": user_image,
-        "user_id": user_id,
-        "state": state
-    })
+   import json
 
-    await message.answer("⏳ Запрос добавлен в очередь генерации...")
+task = {
+    "chat_id": message.chat.id,
+    "prompt": message.text,
+    "model": model,
+    "format": format_value,
+    "image": user_image,
+    "user_id": user_id
+}
+
+await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
+
+queue_size = await redis.llen(GENERATION_QUEUE_KEY)
+
+await message.answer(
+    f"⏳ Запрос добавлен в очередь генерации\n"
+    f"Ваша позиция: {queue_size}"
+)
 
 
 # ================= АДМИН =================
@@ -458,7 +468,11 @@ async def generation_worker():
 
     while True:
 
-        task = await generation_queue.get()
+        import json
+
+data = await redis.blpop(GENERATION_QUEUE_KEY)
+
+task = json.loads(data[1])
 
         message = task["message"]
         prompt = task["prompt"]
