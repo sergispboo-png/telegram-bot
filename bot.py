@@ -100,14 +100,14 @@ BONUS_TABLE = {
 # ================= FSM =================
 
 class Generate(StatesGroup):
-waiting_image = State()
-waiting_prompt = State()
+    waiting_image = State()
+    waiting_prompt = State()
 
 
 # ================= UI =================
 
 def main_menu():
-return InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
     [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="profile")],
     [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="topup")],
@@ -117,7 +117,7 @@ return InlineKeyboardMarkup(inline_keyboard=[
 
 
 def model_menu():
-return InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=f"Nano Banana — {GENERATION_PRICE}₽", callback_data="model_nano")],
     [InlineKeyboardButton(text=f"Nano Banana Pro — {GENERATION_PRICE}₽", callback_data="model_pro")],
     [InlineKeyboardButton(text=f"SeeDream — {GENERATION_PRICE}₽", callback_data="model_seedream")],
@@ -126,7 +126,7 @@ return InlineKeyboardMarkup(inline_keyboard=[
 
 
 def mode_menu():
-return InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📝 Только текст", callback_data="mode_text")],
     [InlineKeyboardButton(text="🖼 Фото + текст", callback_data="mode_image")],
     [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
@@ -134,7 +134,7 @@ return InlineKeyboardMarkup(inline_keyboard=[
 
 
 def format_menu():
-return InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
     [
         InlineKeyboardButton(text="1:1", callback_data="format_1_1"),
         InlineKeyboardButton(text="16:9", callback_data="format_16_9"),
@@ -147,7 +147,7 @@ return InlineKeyboardMarkup(inline_keyboard=[
 
 
 def after_generation_menu():
-return InlineKeyboardMarkup(inline_keyboard=[
+    return InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
     [InlineKeyboardButton(text="🔁 Повторить", callback_data="generate")],
     [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
