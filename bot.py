@@ -72,7 +72,6 @@ GENERATION_QUEUE_KEY = "generation_queue"
 
 # ================= GENERATION QUEUE =================
 
-
 GENERATION_DELAY = 15
 user_generation_times = {}
 
@@ -89,7 +88,8 @@ async def check_generation_queue(user_id):
 
     user_generation_times[user_id] = now
     return True, 0
-# бонусы за пополнение
+
+
 BONUS_TABLE = {
     100: 0,
     500: 50,
@@ -159,6 +159,7 @@ def after_generation_menu():
 
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
+
     await state.clear()
     add_user(message.from_user.id)
 
@@ -172,12 +173,14 @@ async def start(message: Message, state: FSMContext):
         "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
-)
+    )
 
 
 # ================= НАВИГАЦИЯ =================
+
 @dp.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery, state: FSMContext):
+
     await state.clear()
 
     await callback.message.edit_text(
@@ -190,272 +193,73 @@ async def back_main(callback: CallbackQuery, state: FSMContext):
         "👇 Выберите действие:",
         parse_mode="HTML",
         reply_markup=main_menu()
-)    
+    )
 
-await callback.answer()
+    await callback.answer()
 
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
+
     text = (
         "ℹ️ <b>О сервисе LuxRender</b>\n\n"
         "LuxRender — это Telegram-бот для генерации изображений "
         "с помощью искусственного интеллекта.\n\n"
-
         "🖼 <b>Модели для изображений:</b>\n"
         "• Nano Banana — быстрая генерация\n"
         "• Nano Banana Pro — профессиональное качество\n"
         "• SeeDream 4.0 / 4.5 — фотореализм\n\n"
-
         "✨ <b>Возможности:</b>\n"
         "• Создание изображений по тексту\n"
         "• Редактирование фото\n"
         "• Оживление изображений\n"
         "• Готовые шаблоны промптов\n\n"
-
         "🔒 <b>Конфиденциальность:</b>\n"
         "Данные хранятся до 24 часов и используются "
         "только для работы сервиса.\n\n"
-
         "💙 Проект развивается благодаря вашей обратной связи!"
     )
 
-keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="🔒 Политика конфиденциальности",
-                web_app=WebAppInfo(
-                    url=f"https://{PUBLIC_DOMAIN}/privacy"
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔒 Политика конфиденциальности",
+                    web_app=WebAppInfo(
+                        url=f"https://{PUBLIC_DOMAIN}/privacy"
+                    )
                 )
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="📄 Пользовательское соглашение",
-                web_app=WebAppInfo(
-                    url=f"https://{PUBLIC_DOMAIN}/terms"
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📄 Пользовательское соглашение",
+                    web_app=WebAppInfo(
+                        url=f"https://{PUBLIC_DOMAIN}/terms"
+                    )
                 )
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="💬 Техническая поддержка",
-                url="https://t.me/SantaSpb1"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="⬅ Назад",
-                callback_data="back_main"
-            )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💬 Техническая поддержка",
+                    url="https://t.me/SantaSpb1"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅ Назад",
+                    callback_data="back_main"
+                )
+            ]
         ]
-    ]
-)
+    )
 
-await callback.message.edit_text(
-    text,
-    parse_mode="HTML",
-    reply_markup=keyboard
-)
+    await callback.message.edit_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
 
-await callback.answer()
-# ================= ЛИЧНЫЙ КАБИНЕТ =================
-@dp.callback_query(F.data == "profile")
-async def profile(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    balance = get_user(user_id)[0]
-
-cursor = conn.cursor()
-cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
-total_generations = cursor.fetchone()[0]
-
-await callback.message.edit_text(
-    f"👤 <b>Личный кабинет</b>\n\n"
-    f"🆔 ID: <code>{user_id}</code>\n"
-    f"💰 Баланс: <b>{balance}₽</b>\n"
-    f"🎨 Генераций: <b>{total_generations}</b>",
-    parse_mode="HTML",
-    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-    ])
-)
-
-await callback.answer()
-# ================= ПОПОЛНЕНИЕ =================
-
-
-@dp.callback_query(F.data == "topup")
-async def topup(callback: CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="100₽", callback_data="pay_100")],
-    [InlineKeyboardButton(text="500₽ + 50₽ бонус", callback_data="pay_500")],
-    [InlineKeyboardButton(text="1000₽ + 150₽ бонус", callback_data="pay_1000")],
-    [InlineKeyboardButton(text="3000₽ + 500₽ бонус", callback_data="pay_3000")],
-    [InlineKeyboardButton(text="📜 История платежей", callback_data="payments_history")],
-    [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
-])
-
-await callback.message.edit_text(
-    "💰 <b>Пополнение баланса</b>\n\n"
-    "Выберите сумму:",
-    parse_mode="HTML",
-    reply_markup=keyboard
-)
-
-await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("pay_"))
-async def create_payment_handler(callback: CallbackQuery):
-    amount = int(callback.data.split("_")[1])
-    user_id = callback.from_user.id
-
-    payment = create_payment(user_id, amount)
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="💳 Оплатить", url=payment["payment_url"])],
-    [InlineKeyboardButton(text="⬅ Назад", callback_data="topup")]
-])
-
-await callback.message.edit_text(
-    f"💳 Пополнение баланса\n\n"
-    f"Сумма: {amount}₽\n\n"
-    f"Нажмите кнопку ниже для оплаты.",
-    reply_markup=keyboard
-)
-
-await callback.answer()
-@dp.callback_query(F.data == "payments_history")
-async def payments_history(callback: CallbackQuery):
-    cursor = conn.cursor()
-    cursor.execute(
-    "SELECT amount, created_at FROM payments WHERE user_id=? ORDER BY created_at DESC",
-    (callback.from_user.id,)
-)
-
-payments = cursor.fetchall()
-
-if not payments:
-    text = "📜 История платежей пуста."
-else:
-    text = "📜 <b>История платежей</b>\n\n"
-
-    for amount, date in payments[:10]:
-        text += f"💳 {amount}₽ — {date}\n"
-
-keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="⬅ Назад", callback_data="topup")]
-])
-
-await callback.message.edit_text(
-    text,
-    parse_mode="HTML",
-    reply_markup=keyboard
-)
-
-await callback.answer()
-# ================= ГЕНЕРАЦИЯ =================
-
-
-@dp.callback_query(F.data == "generate")
-async def choose_model(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text("🧠 Выберите модель:", reply_markup=model_menu())
     await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("model_"))
-async def choose_mode(callback: CallbackQuery):
-    update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
-await callback.message.edit_text("⚙ Выберите режим:", reply_markup=mode_menu())
-await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("mode_"))
-async def choose_format(callback: CallbackQuery, state: FSMContext):
-    mode = callback.data.split("_")[1]
-await state.update_data(mode=mode)
-await callback.message.edit_text("📐 Выберите формат:", reply_markup=format_menu())
-await callback.answer()
-
-
-@dp.callback_query(F.data.startswith("format_"))
-async def after_format(callback: CallbackQuery, state: FSMContext):
-    format_value = callback.data.replace("format_", "").replace("_", ":")
-    update_format(callback.from_user.id, format_value)
-
-data = await state.get_data()
-mode = data.get("mode")
-
-if mode == "text":
-    await callback.message.edit_text("✍ Напишите промпт:")
-    await state.set_state(Generate.waiting_prompt)
-else:
-    await callback.message.edit_text("🖼 Отправьте изображение:")
-    await state.set_state(Generate.waiting_image)
-
-await callback.answer()
-
-
-@dp.message(Generate.waiting_image)
-async def receive_image(message: Message, state: FSMContext):
-    file_id = message.photo[-1].file_id
-    file = await bot.get_file(file_id)
-    downloaded = await bot.download_file(file.file_path)
-
-image_bytes = downloaded.read()
-image_base64 = base64.b64encode(image_bytes).decode()
-
-await state.update_data(user_image=image_base64)
-await message.answer("✍ Теперь напишите промпт:")
-await state.set_state(Generate.waiting_prompt)
-
-
-@dp.message(Generate.waiting_prompt)
-async def process_prompt(message: Message, state: FSMContext):
-
-    allowed, wait = await check_generation_queue(message.from_user.id)
-
-if not allowed:
-    await message.answer(
-        f"⏳ Сервер сейчас занят.\n"
-        f"Попробуйте снова через {wait} сек."
-    )
-    return
-
-user_id = message.from_user.id
-balance, model, format_value = get_user(user_id)
-
-if balance < GENERATION_PRICE:
-    await message.answer(
-        "❌ Недостаточно средств.",
-        reply_markup=main_menu()
-    )
-    return
-
-data = await state.get_data()
-user_image = data.get("user_image")
-
-
-task = {
-    "chat_id": message.chat.id,
-    "prompt": message.text,
-    "model": model,
-    "format": format_value,
-    "image": user_image,
-    "user_id": user_id
-}
-
-await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
-
-queue_size = await redis.llen(GENERATION_QUEUE_KEY)
-
-await message.answer(
-    f"⏳ Запрос добавлен в очередь генерации\n"
-    f"Ваша позиция: {queue_size}"
-)
 
 # ================= АДМИН =================
 
