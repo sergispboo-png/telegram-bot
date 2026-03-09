@@ -197,11 +197,10 @@ await callback.answer()
 
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
-
-text = (
-    "ℹ️ <b>О сервисе LuxRender</b>\n\n"
-    "LuxRender — это Telegram-бот для генерации изображений "
-    "с помощью искусственного интеллекта.\n\n"
+    text = (
+        "ℹ️ <b>О сервисе LuxRender</b>\n\n"
+        "LuxRender — это Telegram-бот для генерации изображений "
+        "с помощью искусственного интеллекта.\n\n"
 
     "🖼 <b>Модели для изображений:</b>\n"
     "• Nano Banana — быстрая генерация\n"
