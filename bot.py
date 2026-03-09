@@ -450,7 +450,7 @@ task = {
 
 await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
 
-    queue_size = await redis.llen(GENERATION_QUEUE_KEY)
+queue_size = await redis.llen(GENERATION_QUEUE_KEY)
 
 await message.answer(
     f"⏳ Запрос добавлен в очередь генерации\n"
