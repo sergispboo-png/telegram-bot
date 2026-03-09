@@ -160,18 +160,18 @@ def after_generation_menu():
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.clear()
-add_user(message.from_user.id)
+    add_user(message.from_user.id)
 
-await message.answer(
-    "✨ <b>LuxRender</b>\n\n"
-    "🚀 Премиальная AI-генерация изображений\n\n"
-    "🎨 Создавайте креативы\n"
-    "🔥 Улучшайте фотографии\n"
-    "💼 Делайте рекламные макеты\n\n"
-    "💎 Стоимость — 10₽ за генерацию\n\n"
-    "👇 Выберите действие:",
-    parse_mode="HTML",
-    reply_markup=main_menu()
+    await message.answer(
+        "✨ <b>LuxRender</b>\n\n"
+        "🚀 Премиальная AI-генерация изображений\n\n"
+        "🎨 Создавайте креативы\n"
+        "🔥 Улучшайте фотографии\n"
+        "💼 Делайте рекламные макеты\n\n"
+        "💎 Стоимость — 10₽ за генерацию\n\n"
+        "👇 Выберите действие:",
+        parse_mode="HTML",
+        reply_markup=main_menu()
 )
 
 
@@ -180,17 +180,17 @@ await message.answer(
 async def back_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
-await callback.message.edit_text(
-    "✨ <b>LuxRender</b>\n\n"
-    "🚀 Премиальная AI-генерация изображений\n\n"
-    "🎨 Создавайте креативы\n"
-    "🔥 Улучшайте фотографии\n"
-    "💼 Делайте рекламные макеты\n\n"
-    "💎 Стоимость — 10₽ за генерацию\n\n"
-    "👇 Выберите действие:",
-    parse_mode="HTML",
-    reply_markup=main_menu()
-)
+    await callback.message.edit_text(
+        "✨ <b>LuxRender</b>\n\n"
+        "🚀 Премиальная AI-генерация изображений\n\n"
+        "🎨 Создавайте креативы\n"
+        "🔥 Улучшайте фотографии\n"
+        "💼 Делайте рекламные макеты\n\n"
+        "💎 Стоимость — 10₽ за генерацию\n\n"
+        "👇 Выберите действие:",
+        parse_mode="HTML",
+        reply_markup=main_menu()
+)    
 
 await callback.answer()
 
