@@ -1,3 +1,7 @@
+from database import conn, cursor
+from database import conn
+import time
+import asyncio
 import hmac
 import hashlib
 import os
@@ -10,12 +14,12 @@ from io import BytesIO
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
-Message,
-InlineKeyboardMarkup,
-InlineKeyboardButton,
-CallbackQuery,
-BufferedInputFile,
-WebAppInfo
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+    BufferedInputFile,
+    WebAppInfo
 )
 from aiogram.filters import CommandStart, Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
@@ -25,17 +29,17 @@ from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
 
 from database import (
-add_user,
-get_user,
-update_model,
-update_format,
-deduct_balance,
-update_balance,
-get_users_count,
-get_generations_count,
-get_payments_stats,
-get_all_user_ids,
-add_generation,
+    add_user,
+    get_user,
+    update_model,
+    update_format,
+    deduct_balance,
+    update_balance,
+    get_users_count,
+    get_generations_count,
+    get_payments_stats,
+    get_all_user_ids,
+    add_generation,
 )
 
 from generator import generate_image_openrouter
@@ -67,14 +71,10 @@ GENERATION_PRICE = 10
 GENERATION_QUEUE_KEY = "generation_queue"
 
 # ================= GENERATION QUEUE =================
-import asyncio
-
 
 
 GENERATION_DELAY = 15
 user_generation_times = {}
-
-import time
 
 
 async def check_generation_queue(user_id):
@@ -91,13 +91,14 @@ async def check_generation_queue(user_id):
     return True, 0
 # бонусы за пополнение
 BONUS_TABLE = {
-100: 0,
-500: 50,
-1000: 150,
-3000: 500
+    100: 0,
+    500: 50,
+    1000: 150,
+    3000: 500
 }
 
 # ================= FSM =================
+
 
 class Generate(StatesGroup):
     waiting_image = State()
@@ -108,50 +109,50 @@ class Generate(StatesGroup):
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
-    [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="profile")],
-    [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="topup")],
-    [InlineKeyboardButton(text="📢 TG канал", url=f"https://t.me/{CHANNEL_USERNAME}")],
-    [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
-])
+        [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="profile")],
+        [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="topup")],
+        [InlineKeyboardButton(text="📢 TG канал", url=f"https://t.me/{CHANNEL_USERNAME}")],
+        [InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="about")]
+    ])
 
 
 def model_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text=f"Nano Banana — {GENERATION_PRICE}₽", callback_data="model_nano")],
-    [InlineKeyboardButton(text=f"Nano Banana Pro — {GENERATION_PRICE}₽", callback_data="model_pro")],
-    [InlineKeyboardButton(text=f"SeeDream — {GENERATION_PRICE}₽", callback_data="model_seedream")],
-    [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
-])
+        [InlineKeyboardButton(text=f"Nano Banana — {GENERATION_PRICE}₽", callback_data="model_nano")],
+        [InlineKeyboardButton(text=f"Nano Banana Pro — {GENERATION_PRICE}₽", callback_data="model_pro")],
+        [InlineKeyboardButton(text=f"SeeDream — {GENERATION_PRICE}₽", callback_data="model_seedream")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
+    ])
 
 
 def mode_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="📝 Только текст", callback_data="mode_text")],
-    [InlineKeyboardButton(text="🖼 Фото + текст", callback_data="mode_image")],
-    [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
-])
+        [InlineKeyboardButton(text="📝 Только текст", callback_data="mode_text")],
+        [InlineKeyboardButton(text="🖼 Фото + текст", callback_data="mode_image")],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
+    ])
 
 
 def format_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-    [
-        InlineKeyboardButton(text="1:1", callback_data="format_1_1"),
-        InlineKeyboardButton(text="16:9", callback_data="format_16_9"),
-    ],
-    [
-        InlineKeyboardButton(text="9:16", callback_data="format_9_16"),
-    ],
-    [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
-])
+        [
+            InlineKeyboardButton(text="1:1", callback_data="format_1_1"),
+            InlineKeyboardButton(text="16:9", callback_data="format_16_9"),
+        ],
+        [
+            InlineKeyboardButton(text="9:16", callback_data="format_9_16"),
+        ],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="generate")]
+    ])
 
 
 def after_generation_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
-    [InlineKeyboardButton(text="🔁 Повторить", callback_data="generate")],
-    [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-])
+        [InlineKeyboardButton(text="🎨 Сгенерировать изображение", callback_data="generate")],
+        [InlineKeyboardButton(text="🔁 Повторить", callback_data="generate")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
+    ])
 
 
 # ================= START =================
@@ -194,7 +195,6 @@ await callback.message.edit_text(
 await callback.answer()
 
 
-
 @dp.callback_query(F.data == "about")
 async def about(callback: CallbackQuery):
     text = (
@@ -202,23 +202,23 @@ async def about(callback: CallbackQuery):
         "LuxRender — это Telegram-бот для генерации изображений "
         "с помощью искусственного интеллекта.\n\n"
 
-    "🖼 <b>Модели для изображений:</b>\n"
-    "• Nano Banana — быстрая генерация\n"
-    "• Nano Banana Pro — профессиональное качество\n"
-    "• SeeDream 4.0 / 4.5 — фотореализм\n\n"
+        "🖼 <b>Модели для изображений:</b>\n"
+        "• Nano Banana — быстрая генерация\n"
+        "• Nano Banana Pro — профессиональное качество\n"
+        "• SeeDream 4.0 / 4.5 — фотореализм\n\n"
 
-    "✨ <b>Возможности:</b>\n"
-    "• Создание изображений по тексту\n"
-    "• Редактирование фото\n"
-    "• Оживление изображений\n"
-    "• Готовые шаблоны промптов\n\n"
+        "✨ <b>Возможности:</b>\n"
+        "• Создание изображений по тексту\n"
+        "• Редактирование фото\n"
+        "• Оживление изображений\n"
+        "• Готовые шаблоны промптов\n\n"
 
-    "🔒 <b>Конфиденциальность:</b>\n"
-    "Данные хранятся до 24 часов и используются "
-    "только для работы сервиса.\n\n"
+        "🔒 <b>Конфиденциальность:</b>\n"
+        "Данные хранятся до 24 часов и используются "
+        "только для работы сервиса.\n\n"
 
-    "💙 Проект развивается благодаря вашей обратной связи!"
-)
+        "💙 Проект развивается благодаря вашей обратной связи!"
+    )
 
 keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -266,7 +266,6 @@ async def profile(callback: CallbackQuery):
 user_id = callback.from_user.id
 balance = get_user(user_id)[0]
 
-from database import conn
 cursor = conn.cursor()
 cursor.execute("SELECT COUNT(*) FROM generations WHERE user_id=?", (user_id,))
 total_generations = cursor.fetchone()[0]
@@ -285,6 +284,7 @@ await callback.message.edit_text(
 
 await callback.answer()
 # ================= ПОПОЛНЕНИЕ =================
+
 
 @dp.callback_query(F.data == "topup")
 async def topup(callback: CallbackQuery):
@@ -332,7 +332,6 @@ await callback.answer()
 @dp.callback_query(F.data == "payments_history")
 async def payments_history(callback: CallbackQuery):
 
-from database import conn
 cursor = conn.cursor()
 
 cursor.execute(
@@ -362,6 +361,7 @@ await callback.message.edit_text(
 
 await callback.answer()
 # ================= ГЕНЕРАЦИЯ =================
+
 
 @dp.callback_query(F.data == "generate")
 async def choose_model(callback: CallbackQuery, state: FSMContext):
@@ -442,15 +442,14 @@ if balance < GENERATION_PRICE:
 data = await state.get_data()
 user_image = data.get("user_image")
 
-import json
 
 task = {
-"chat_id": message.chat.id,
-"prompt": message.text,
-"model": model,
-"format": format_value,
-"image": user_image,
-"user_id": user_id
+    "chat_id": message.chat.id,
+    "prompt": message.text,
+    "model": model,
+    "format": format_value,
+    "image": user_image,
+    "user_id": user_id
 }
 
 await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
@@ -458,11 +457,13 @@ await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
 queue_size = await redis.llen(GENERATION_QUEUE_KEY)
 
 await message.answer(
-f"⏳ Запрос добавлен в очередь генерации\n"
-f"Ваша позиция: {queue_size}"
+    f"⏳ Запрос добавлен в очередь генерации\n"
+    f"Ваша позиция: {queue_size}"
 )
 
 # ================= АДМИН =================
+
+
 async def generation_worker():
 
 while True:
@@ -497,13 +498,12 @@ while True:
         # если генерация не удалась
         if not result or "image_bytes" not in result:
 
-          await bot.send_message(
-    chat_id,
-    "❌ Ошибка генерации.\nПопробуйте снова.",
-    reply_markup=after_generation_menu()
-)
+            await bot.send_message(
+                chat_id,
+                "❌ Ошибка генерации.\nПопробуйте снова.",
+                reply_markup=after_generation_menu()
+            )
 
-        
             continue
 
         image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
@@ -534,7 +534,8 @@ while True:
                 "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
                 reply_markup=after_generation_menu()
             )
-   
+
+
 @dp.message(Command("stats"))
 async def admin_stats(message: Message):
 if message.from_user.id != ADMIN_ID:
@@ -562,7 +563,7 @@ try:
     _, user_id, amount = message.text.split()
     update_balance(int(user_id), int(amount))
     await message.answer("Баланс обновлён.")
-except:
+except BaseException:
     await message.answer("Формат: /addbalance USER_ID СУММА")
 
 
@@ -579,7 +580,7 @@ for user_id in users:
     try:
         await bot.send_message(user_id, text)
         sent += 1
-    except:
+    except BaseException:
         pass
 
 await message.answer(f"Рассылка завершена. Отправлено: {sent}")
@@ -608,6 +609,7 @@ await bot.delete_webhook()
 await bot.session.close()
 
 # ================= YOOKASSA WEBHOOK =================
+
 
 async def yookassa_webhook(request):
 
@@ -638,7 +640,6 @@ payment_id = obj["id"]
 amount = int(float(obj["amount"]["value"]))
 user_id = int(obj["metadata"]["user_id"])
 
-from database import conn, cursor
 
 cursor.execute(
     "SELECT payment_id FROM payments WHERE payment_id=?",
@@ -670,7 +671,7 @@ try:
         f"Бонус: <b>{bonus}₽</b>",
         parse_mode="HTML"
     )
-except:
+except BaseException:
     pass
 
 logging.warning(f"Payment success: {user_id} +{total_amount}")
@@ -679,8 +680,10 @@ return web.Response(text="OK")
 
 # ================= MINI APP PAGES =================
 
+
 async def privacy_page(request):
 return web.FileResponse("privacy.html")
+
 
 async def terms_page(request):
 return web.FileResponse("terms.html")
