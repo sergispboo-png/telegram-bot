@@ -438,11 +438,10 @@ async def process_prompt(message: Message, state: FSMContext):
             reply_markup=main_menu()
         )
         return
+        data = await state.get_data()
+user_image = data.get("user_image")
 
-    data = await state.get_data()
-    user_image = data.get("user_image")
-
-   import json
+import json
 
 task = {
     "chat_id": message.chat.id,
@@ -462,19 +461,20 @@ await message.answer(
     f"Ваша позиция: {queue_size}"
 )
 
-
 # ================= АДМИН =================
 async def generation_worker():
 
+    async def generation_worker():
+
+    import json
+
     while True:
 
-        import json
+        data = await redis.blpop(GENERATION_QUEUE_KEY)
 
-data = await redis.blpop(GENERATION_QUEUE_KEY)
+        task = json.loads(data[1])
 
-task = json.loads(data[1])
-
-        message = task["message"]
+        chat_id = task["chat_id"]
         prompt = task["prompt"]
         model = task["model"]
         format_value = task["format"]
@@ -507,7 +507,7 @@ task = json.loads(data[1])
                     reply_markup=after_generation_menu()
                 )
 
-                generation_queue.task_done()
+            
                 continue
 
             image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
@@ -517,7 +517,7 @@ task = json.loads(data[1])
 
             file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
 
-            await message.answer_photo(file)
+            await bot.send_photo(chat_id, file)
 
             deduct_balance(user_id, GENERATION_PRICE)
             add_generation(user_id, model)
@@ -529,18 +529,18 @@ task = json.loads(data[1])
                 reply_markup=after_generation_menu()
             )
 
-            await state.clear()
+           
+       except Exception as e:
 
-        except Exception as e:
+    ERROR_LOG.append(str(e))
 
-            ERROR_LOG.append(str(e))
+    await bot.send_message(
+        chat_id,
+        "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
+        reply_markup=after_generation_menu()
+    )
 
-            await message.answer(
-                "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
-                reply_markup=after_generation_menu()
-            )
-
-        generation_queue.task_done()
+       
 @dp.message(Command("stats"))
 async def admin_stats(message: Message):
     if message.from_user.id != ADMIN_ID:
