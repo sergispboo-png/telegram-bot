@@ -20,7 +20,8 @@ from aiogram.filters import CommandStart, Command
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
+from redis.asyncio import Redis
 
 from database import (
     add_user,
@@ -53,7 +54,11 @@ WEBHOOK_URL = f"https://{PUBLIC_DOMAIN}{WEBHOOK_PATH}"
 logging.basicConfig(level=logging.WARNING)
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+redis = Redis.from_url(os.getenv("REDIS_URL"))
+
+storage = RedisStorage(redis)
+
+dp = Dispatcher(storage=storage)
 
 ERROR_LOG = []
 GENERATION_PRICE = 10
