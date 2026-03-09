@@ -383,8 +383,8 @@ await callback.answer()
 
 @dp.callback_query(F.data.startswith("format_"))
 async def after_format(callback: CallbackQuery, state: FSMContext):
-format_value = callback.data.replace("format_", "").replace("_", ":")
-update_format(callback.from_user.id, format_value)
+    format_value = callback.data.replace("format_", "").replace("_", ":")
+    update_format(callback.from_user.id, format_value)
 
 data = await state.get_data()
 mode = data.get("mode")
@@ -401,9 +401,9 @@ await callback.answer()
 
 @dp.message(Generate.waiting_image)
 async def receive_image(message: Message, state: FSMContext):
-file_id = message.photo[-1].file_id
-file = await bot.get_file(file_id)
-downloaded = await bot.download_file(file.file_path)
+    file_id = message.photo[-1].file_id
+    file = await bot.get_file(file_id)
+    downloaded = await bot.download_file(file.file_path)
 
 image_bytes = downloaded.read()
 image_base64 = base64.b64encode(image_bytes).decode()
@@ -416,7 +416,7 @@ await state.set_state(Generate.waiting_prompt)
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
-allowed, wait = await check_generation_queue(message.from_user.id)
+    allowed, wait = await check_generation_queue(message.from_user.id)
 
 if not allowed:
     await message.answer(
@@ -450,7 +450,7 @@ task = {
 
 await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
 
-queue_size = await redis.llen(GENERATION_QUEUE_KEY)
+    queue_size = await redis.llen(GENERATION_QUEUE_KEY)
 
 await message.answer(
     f"⏳ Запрос добавлен в очередь генерации\n"
