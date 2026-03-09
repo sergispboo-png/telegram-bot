@@ -54,7 +54,7 @@ WEBHOOK_URL = f"https://{PUBLIC_DOMAIN}{WEBHOOK_PATH}"
 logging.basicConfig(level=logging.WARNING)
 
 bot = Bot(token=TOKEN)
-redis = Redis.from_url(os.getenv("REDIS_URL"))
+redis = Redis.from_url(os.getenv("REDIS_PUBLIC_URL"))
 
 storage = RedisStorage(redis)
 
