@@ -418,12 +418,31 @@ async def process_prompt(message: Message, state: FSMContext):
 
     await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
 
-    queue_size = await redis.llen(GENERATION_QUEUE_KEY)
+  queue_size = await redis.llen(GENERATION_QUEUE_KEY) + 1
 
-    await message.answer(
-        f"⏳ Запрос добавлен в очередь\n"
-        f"Ваша позиция: {queue_size}"
-    )
+await message.answer(
+    f"🎨 Генерирую изображение...\n\n"
+    f"⏳ Запрос добавлен в очередь\n"
+    f"Ваша позиция: {queue_size}"
+)
+@dp.message(Generate.waiting_image)
+async def process_image(message: Message, state: FSMContext):
+
+    if not message.photo:
+        await message.answer("❌ Отправьте изображение.")
+        return
+
+    photo = message.photo[-1]
+
+    file = await bot.get_file(photo.file_id)
+    file_bytes = await bot.download_file(file.file_path)
+
+    image_base64 = base64.b64encode(file_bytes.read()).decode()
+
+    await state.update_data(user_image=image_base64)
+
+    await message.answer("✍ Теперь напишите промпт:")
+    await state.set_state(Generate.waiting_prompt)
 @dp.callback_query(F.data.startswith("pay_"))
 async def create_payment_handler(callback: CallbackQuery):
 
@@ -454,7 +473,7 @@ async def generation_worker():
 
         data = await redis.blpop(GENERATION_QUEUE_KEY)
 
-        task = json.loads(data[1])
+        task = json.loads(data[1].decode())
         chat_id = task["chat_id"]
         prompt = task["prompt"]
         model = task["model"]
@@ -492,10 +511,11 @@ async def generation_worker():
 
             image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
 
-            buffer = BytesIO()
-            image.save(buffer, format="JPEG")
+          buffer = BytesIO()
+image.save(buffer, format="JPEG")
+buffer.seek(0)
 
-            file = BufferedInputFile(buffer.getvalue(), filename="image.jpg")
+file = BufferedInputFile(buffer.read(), filename="image.jpg")
 
             await bot.send_photo(chat_id, file)
 
