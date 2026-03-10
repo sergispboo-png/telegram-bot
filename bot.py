@@ -506,16 +506,15 @@ async def generation_worker():
                 )
 
                 continue
+image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
 
-            image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
-
-          buffer = BytesIO()
+buffer = BytesIO()
 image.save(buffer, format="JPEG")
 buffer.seek(0)
 
 file = BufferedInputFile(buffer.read(), filename="image.jpg")
 
-            await bot.send_photo(chat_id, file)
+await bot.send_photo(chat_id, file)
 
             deduct_balance(user_id, GENERATION_PRICE)
             add_generation(user_id, model)
