@@ -417,13 +417,11 @@ async def process_prompt(message: Message, state: FSMContext):
     }
 
     await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
-
-  queue_size = await redis.llen(GENERATION_QUEUE_KEY) + 1
-
-await message.answer(
-    f"🎨 Генерирую изображение...\n\n"
-    f"⏳ Запрос добавлен в очередь\n"
-    f"Ваша позиция: {queue_size}"
+    queue_size = await redis.llen(GENERATION_QUEUE_KEY) + 1
+    await message.answer(
+        f"🎨 Генерирую изображение...\n\n"
+        f"⏳ Запрос добавлен в очередь\n"
+        f"Ваша позиция: {queue_size}"
 )
 @dp.message(Generate.waiting_image)
 async def process_image(message: Message, state: FSMContext):
