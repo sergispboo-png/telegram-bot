@@ -383,6 +383,68 @@ async def topup(callback: CallbackQuery):
     )
 
     await callback.answer()
+@dp.message(Generate.waiting_prompt)
+async def process_prompt(message: Message, state: FSMContext):
+
+    allowed, wait = await check_generation_queue(message.from_user.id)
+
+    if not allowed:
+        await message.answer(
+            f"⏳ Сервер занят.\nПопробуйте через {wait} сек."
+        )
+        return
+
+    user_id = message.from_user.id
+    balance, model, format_value = get_user(user_id)
+
+    if balance < GENERATION_PRICE:
+        await message.answer(
+            "❌ Недостаточно средств.",
+            reply_markup=main_menu()
+        )
+        return
+
+    data = await state.get_data()
+    user_image = data.get("user_image")
+
+    task = {
+        "chat_id": message.chat.id,
+        "prompt": message.text,
+        "model": model,
+        "format": format_value,
+        "image": user_image,
+        "user_id": user_id
+    }
+
+    await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
+
+    queue_size = await redis.llen(GENERATION_QUEUE_KEY)
+
+    await message.answer(
+        f"⏳ Запрос добавлен в очередь\n"
+        f"Ваша позиция: {queue_size}"
+    )
+@dp.callback_query(F.data.startswith("pay_"))
+async def create_payment_handler(callback: CallbackQuery):
+
+    amount = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
+
+    payment = create_payment(user_id, amount)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Оплатить", url=payment["payment_url"])],
+        [InlineKeyboardButton(text="⬅ Назад", callback_data="topup")]
+    ])
+
+    await callback.message.edit_text(
+        f"💳 Пополнение баланса\n\n"
+        f"Сумма: {amount}₽\n\n"
+        f"Нажмите кнопку ниже для оплаты.",
+        reply_markup=keyboard
+    )
+
+    await callback.answer()
 # ================= АДМИН =================
 
 
