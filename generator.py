@@ -24,13 +24,17 @@ async def generate_image_openrouter(
         content = []
 
         # Если есть изображение пользователя
-        if user_image:
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/png;base64,{user_image}"
-                }
-            })
+      if user_image:
+
+    if isinstance(user_image, bytes):
+        user_image = base64.b64encode(user_image).decode()
+
+    content.append({
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:image/png;base64,{user_image}"
+        }
+    })
 
         # Добавляем текст
         content.append({
@@ -56,19 +60,24 @@ async def generate_image_openrouter(
         # ---------- Запрос ----------
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                OPENROUTER_URL,
-                headers=headers,
-                json=payload
-            ) as resp:
+          async with aiohttp.ClientSession() as session:
+    async with session.post(
+        OPENROUTER_URL,
+        headers=headers,
+        json=payload
+    ) as resp:
 
-                data = await resp.json()
-                logging.info(f"OpenRouter response: {data}")
+        data = await resp.json()
+        logging.info(f"OpenRouter response: {data}")
 
-                if "choices" not in data:
-                    return {"error": f"Invalid response: {data}"}
+        if "error" in data:
+            logging.error(f"OpenRouter error: {data}")
+            return {"error": data["error"]}
 
-                message = data["choices"][0]["message"]
+        if "choices" not in data:
+            return {"error": f"Invalid response: {data}"}
+
+        message = data["choices"][0]["message"]
 
                 if "images" not in message or not message["images"]:
                     return {"error": f"No images in response: {data}"}
