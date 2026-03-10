@@ -260,69 +260,7 @@ async def about(callback: CallbackQuery):
     )
 
     await callback.answer()
-# ================= КНОПКИ МЕНЮ =================
 
-@dp.callback_query(F.data.startswith("model_"))
-async def choose_mode(callback: CallbackQuery):
-
-    update_model(callback.from_user.id, "google/gemini-2.5-flash-image")
-
-    await callback.message.edit_text(
-        "⚙ Выберите режим:",
-        reply_markup=mode_menu()
-    )
-
-    await callback.answer()
-
-
-@dp.callback_query(F.data == "profile")
-async def profile(callback: CallbackQuery):
-
-    user_id = callback.from_user.id
-    balance = get_user(user_id)[0]
-
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT COUNT(*) FROM generations WHERE user_id=?",
-        (user_id,)
-    )
-
-    total_generations = cursor.fetchone()[0]
-
-    await callback.message.edit_text(
-        f"👤 <b>Личный кабинет</b>\n\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
-        f"💰 Баланс: <b>{balance}₽</b>\n"
-        f"🎨 Генераций: <b>{total_generations}</b>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup")],
-            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_main")]
-        ])
-    )
-
-    await callback.answer()
-
-
-@dp.callback_query(F.data == "topup")
-async def topup(callback: CallbackQuery):
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="100₽", callback_data="pay_100")],
-        [InlineKeyboardButton(text="500₽ + 50₽ бонус", callback_data="pay_500")],
-        [InlineKeyboardButton(text="1000₽ + 150₽ бонус", callback_data="pay_1000")],
-        [InlineKeyboardButton(text="3000₽ + 500₽ бонус", callback_data="pay_3000")],
-        [InlineKeyboardButton(text="⬅ Назад", callback_data="back_main")]
-    ])
-
-    await callback.message.edit_text(
-        "💰 <b>Пополнение баланса</b>\n\n"
-        "Выберите сумму:",
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
-
-    await callback.answer()
     # ================= ГЕНЕРАЦИЯ =================
 
 @dp.callback_query(F.data.startswith("model_"))
