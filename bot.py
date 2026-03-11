@@ -1,5 +1,4 @@
 from database import conn, cursor
-from database import conn
 import time
 import asyncio
 import hmac
@@ -266,11 +265,11 @@ async def about(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("model_"))
 async def choose_mode(callback: CallbackQuery):
 
-    model_map = {
-        "model_nano": "nano-banana",
-        "model_pro": "nano-banana-pro",
-        "model_seedream": "seedream"
-    }
+   model_map = {
+    "model_nano": "google/gemini-2.0-flash-exp-image-generation",
+    "model_pro": "google/gemini-2.0-flash-exp-image-generation",
+    "model_seedream": "bytedance/seedream-3"
+}
 
     model = model_map.get(callback.data)
 
