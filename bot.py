@@ -602,8 +602,9 @@ async def admin_logs(message: Message):
 async def on_startup(app):
 
     await bot.set_webhook(WEBHOOK_URL)
-
-    asyncio.create_task(generation_worker())
+  # запускаем несколько worker
+    for _ in range(3):
+        asyncio.create_task(generation_worker())
 
 
 async def on_shutdown(app):
