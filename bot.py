@@ -475,31 +475,25 @@ async def generation_worker():
 
     while True:
 
-        data = await redis.blpop(GENERATION_QUEUE_KEY)
-
-        task = json.loads(data[1].decode())
-        chat_id = task["chat_id"]
-        prompt = task["prompt"]
-        model = task["model"]
-        format_value = task["format"]
-        user_image = task["image"]
-        user_id = task["user_id"]
-
         try:
 
-            result = None
+            data = await redis.blpop(GENERATION_QUEUE_KEY)
 
-            for attempt in range(2):
+            task = json.loads(data[1].decode())
 
-                result = await generate_image_openrouter(
-                    prompt=prompt,
-                    model=model,
-                    format_value=format_value,
-                    user_image=user_image
-                )
+            chat_id = task["chat_id"]
+            prompt = task["prompt"]
+            model = task["model"]
+            format_value = task["format"]
+            user_image = task["image"]
+            user_id = task["user_id"]
 
-                if result and "image_bytes" in result:
-                    break
+            result = await generate_image_openrouter(
+                prompt=prompt,
+                model=model,
+                format_value=format_value,
+                user_image=user_image
+            )
 
             if not result or "image_bytes" not in result:
 
@@ -508,6 +502,7 @@ async def generation_worker():
                     "❌ Ошибка генерации.\nПопробуйте снова.",
                     reply_markup=after_generation_menu()
                 )
+
                 continue
 
             image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
@@ -533,16 +528,10 @@ async def generation_worker():
 
         except Exception as e:
 
-            logging.exception("Generation error")
-            ERROR_LOG.append(str(e))
+            logging.exception("Worker error")
 
-            await bot.send_message(
-                chat_id,
-                "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
-                reply_markup=after_generation_menu()
-            )
-
-        await asyncio.sleep(0.5)
+            # ждём и перезапускаем worker
+            await asyncio.sleep(5)
 @dp.message(Command("stats"))
 async def admin_stats(message: Message):
 
