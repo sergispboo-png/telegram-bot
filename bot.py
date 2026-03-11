@@ -390,16 +390,15 @@ async def topup(callback: CallbackQuery):
 @dp.message(Generate.waiting_prompt)
 async def process_prompt(message: Message, state: FSMContext):
 
-    allowed, wait = await check_generation_queue(message.from_user.id)
-
-    if not allowed:
-        await message.answer(
-            f"⏳ Сервер занят.\nПопробуйте через {wait} сек."
-        )
-        return
-
     user_id = message.from_user.id
-    balance, model, format_value = get_user(user_id)
+
+    user = get_user(user_id)
+
+    if not user:
+        add_user(user_id)
+        user = get_user(user_id)
+
+    balance, model, format_value = user
 
     if balance < GENERATION_PRICE:
         await message.answer(
@@ -421,12 +420,16 @@ async def process_prompt(message: Message, state: FSMContext):
     }
 
     await redis.rpush(GENERATION_QUEUE_KEY, json.dumps(task))
-    queue_size = await redis.llen(GENERATION_QUEUE_KEY) + 1
+
+    queue_size = await redis.llen(GENERATION_QUEUE_KEY)
+
     await message.answer(
-        f"🎨 Генерирую изображение...\n\n"
+        f"🎨 Генерирую изображение...\n"
         f"⏳ Запрос добавлен в очередь\n"
         f"Ваша позиция: {queue_size}"
-)
+    )
+
+    await state.clear()
 @dp.message(Generate.waiting_image)
 async def process_image(message: Message, state: FSMContext):
 
