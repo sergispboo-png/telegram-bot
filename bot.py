@@ -167,7 +167,7 @@ if not user:
     user = get_user(user_id)
 
 balance, model, format_value = user
-
+    
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
         "🚀 Премиальная AI-генерация изображений\n\n"
