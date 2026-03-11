@@ -261,15 +261,14 @@ async def about(callback: CallbackQuery):
     await callback.answer()
 
     # ================= ГЕНЕРАЦИЯ =================
-
 @dp.callback_query(F.data.startswith("model_"))
 async def choose_mode(callback: CallbackQuery):
 
-   model_map = {
-    "model_nano": "google/gemini-2.0-flash-exp-image-generation",
-    "model_pro": "google/gemini-2.0-flash-exp-image-generation",
-    "model_seedream": "bytedance/seedream-3"
-}
+    model_map = {
+        "model_nano": "google/gemini-2.0-flash-exp-image-generation",
+        "model_pro": "google/gemini-2.0-flash-exp-image-generation",
+        "model_seedream": "bytedance/seedream-3"
+    }
 
     model = model_map.get(callback.data)
 
