@@ -478,66 +478,62 @@ async def generation_worker():
         format_value = task["format"]
         user_image = task["image"]
         user_id = task["user_id"]
+try:
 
-        try:
+    result = None
 
-            result = None
+    for attempt in range(2):
 
-            # повтор генерации если API временно упал
-            for attempt in range(2):
+        result = await generate_image_openrouter(
+            prompt=prompt,
+            model=model,
+            format_value=format_value,
+            user_image=user_image
+        )
 
-                result = await generate_image_openrouter(
-                    prompt=prompt,
-                    model=model,
-                    format_value=format_value,
-                    user_image=user_image
-                )
+        if result and "image_bytes" in result:
+            break
 
-                if result and "image_bytes" in result:
-                    break
+    if not result or "image_bytes" not in result:
 
-            # если генерация не удалась
-            if not result or "image_bytes" not in result:
+        await bot.send_message(
+            chat_id,
+            "❌ Ошибка генерации.\nПопробуйте снова.",
+            reply_markup=after_generation_menu()
+        )
+        continue
 
-                await bot.send_message(
-                    chat_id,
-                    "❌ Ошибка генерации.\nПопробуйте снова.",
-                    reply_markup=after_generation_menu()
-                )
+    image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
 
-                continue
-image = Image.open(BytesIO(result["image_bytes"])).convert("RGB")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+    buffer.seek(0)
 
-buffer = BytesIO()
-image.save(buffer, format="JPEG")
-buffer.seek(0)
+    file = BufferedInputFile(buffer.read(), filename="image.jpg")
 
-file = BufferedInputFile(buffer.read(), filename="image.jpg")
+    await bot.send_photo(chat_id, file)
 
-await bot.send_photo(chat_id, file)
+    deduct_balance(user_id, GENERATION_PRICE)
+    add_generation(user_id, model)
 
-            deduct_balance(user_id, GENERATION_PRICE)
-            add_generation(user_id, model)
+    new_balance = get_user(user_id)[0]
 
-            new_balance = get_user(user_id)[0]
+    await bot.send_message(
+        chat_id,
+        f"✅ Готово!\n💎 Остаток: {new_balance}₽",
+        reply_markup=after_generation_menu()
+    )
 
-            await bot.send_message(
-                chat_id,
-                f"✅ Готово!\n💎 Остаток: {new_balance}₽",
-                reply_markup=after_generation_menu()
-            )
+except Exception as e:
 
-        except Exception as e:
+    logging.exception("Generation error")
+    ERROR_LOG.append(str(e))
 
-            ERROR_LOG.append(str(e))
-
-            await bot.send_message(
-                chat_id,
-                "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
-                reply_markup=after_generation_menu()
-            )
-
-
+    await bot.send_message(
+        chat_id,
+        "⚠️ Произошла ошибка генерации.\nПопробуйте снова.",
+        reply_markup=after_generation_menu()
+    )
 @dp.message(Command("stats"))
 async def admin_stats(message: Message):
 
