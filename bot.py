@@ -160,7 +160,13 @@ def after_generation_menu():
 async def start(message: Message, state: FSMContext):
 
     await state.clear()
-    add_user(message.from_user.id)
+    user = get_user(user_id)
+
+if not user:
+    add_user(user_id)
+    user = get_user(user_id)
+
+balance, model, format_value = user
 
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
