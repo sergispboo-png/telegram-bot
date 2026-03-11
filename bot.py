@@ -167,10 +167,7 @@ async def start(message: Message, state: FSMContext):
 
     if not user:
         add_user(user_id)
-        user = get_user(user_id)
 
-balance, model, format_value = user
-    
     await message.answer(
         "✨ <b>LuxRender</b>\n\n"
         "🚀 Премиальная AI-генерация изображений\n\n"
@@ -182,7 +179,6 @@ balance, model, format_value = user
         parse_mode="HTML",
         reply_markup=main_menu()
     )
-
 
 # ================= НАВИГАЦИЯ =================
 
