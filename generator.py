@@ -20,21 +20,20 @@ async def generate_image_openrouter(
         }
 
         # ---------- Формируем content ----------
-
         content = []
 
         # Если есть изображение пользователя
-      if user_image:
+        if user_image:
+            # если вдруг передали bytes — конвертируем в base64
+            if isinstance(user_image, bytes):
+                user_image = base64.b64encode(user_image).decode()
 
-    if isinstance(user_image, bytes):
-        user_image = base64.b64encode(user_image).decode()
-
-    content.append({
-        "type": "image_url",
-        "image_url": {
-            "url": f"data:image/png;base64,{user_image}"
-        }
-    })
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{user_image}"
+                }
+            })
 
         # Добавляем текст
         content.append({
@@ -43,12 +42,9 @@ async def generate_image_openrouter(
         })
 
         # ---------- Payload ----------
-
         payload = {
             "model": model,
-            "response_format": {
-                "type": "image"
-            },
+            "response_format": {"type": "image"},
             "messages": [
                 {
                     "role": "user",
@@ -58,36 +54,38 @@ async def generate_image_openrouter(
         }
 
         # ---------- Запрос ----------
+        timeout = aiohttp.ClientTimeout(total=120)
 
-        async with aiohttp.ClientSession() as session:
-          async with aiohttp.ClientSession() as session:
-    async with session.post(
-        OPENROUTER_URL,
-        headers=headers,
-        json=payload
-    ) as resp:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                OPENROUTER_URL,
+                headers=headers,
+                json=payload
+            ) as resp:
 
-        data = await resp.json()
-        logging.info(f"OpenRouter response: {data}")
+                data = await resp.json()
+                logging.info(f"OpenRouter response: {data}")
 
-        if "error" in data:
-            logging.error(f"OpenRouter error: {data}")
-            return {"error": data["error"]}
+                # если API вернул ошибку
+                if "error" in data:
+                    logging.error(f"OpenRouter error: {data}")
+                    return {"error": data["error"]}
 
-        if "choices" not in data:
-            return {"error": f"Invalid response: {data}"}
+                if "choices" not in data:
+                    return {"error": f"Invalid response: {data}"}
 
-        message = data["choices"][0]["message"]
+                message = data["choices"][0]["message"]
 
                 if "images" not in message or not message["images"]:
                     return {"error": f"No images in response: {data}"}
 
                 image_obj = message["images"][0]
 
+                # ---------- Получаем изображение ----------
                 if "image_url" in image_obj:
                     url = image_obj["image_url"]["url"]
 
-                    # data:image/png;base64,...
+                    # base64 формат
                     if url.startswith("data:image"):
                         base64_data = url.split("base64,")[1]
                         image_bytes = base64.b64decode(base64_data)
@@ -97,6 +95,7 @@ async def generate_image_openrouter(
                     async with session.get(url) as img_resp:
                         if img_resp.status != 200:
                             return {"error": f"Image download failed: {img_resp.status}"}
+
                         image_bytes = await img_resp.read()
                         return {"image_bytes": image_bytes}
 
